@@ -1,0 +1,21 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+  background: #ffffff;
+  color: #1f2328;
+  -webkit-font-smoothing: antialiased;
+}
+:root {
+  --ink: #1f2328;
+  --muted: #656d76;
+  --line: #e4e7eb;
+  --paper: #f6f8fa;
+  --green: #1a7f37;
+  --green-bg: #e8f6ec;
+  --blue: #0b63ce;
+  --blue-bg: #e7f0fc;
+  --red: #c4372b;
+  --red-bg: #fcebea;
+}
+#card { position: relative; overflow: hidden; }
+.mono { font-family: "Cascadia Code", Consolas, monospace; }
