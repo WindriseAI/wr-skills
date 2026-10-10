@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+body { padding: 20px; background: #eef0f3; }
+.demo { width: 920px; background: #fff; border: 1px solid var(--line); border-radius: 18px; margin-bottom: 40px; overflow: hidden; }
+.bar { display: flex; justify-content: space-between; align-items: center; padding: 16px 26px; border-bottom: 1px solid var(--line); }
+.bar b { font-size: 20px; }
+.bar span { font-size: 14px; color: var(--muted); }
+.g .bar b { color: var(--green); } .b .bar b { color: var(--blue); } .r .bar b { color: var(--red); }
+.body { padding: 24px 26px 28px; display: flex; flex-direction: column; gap: 18px; }
+.me { align-self: flex-end; max-width: 72%; background: #2b3137; color: #fff; border-radius: 16px 16px 4px 16px; padding: 12px 16px; font-size: 16px; line-height: 1.6; }
+.ai { align-self: flex-start; max-width: 92%; background: var(--paper); border: 1px solid var(--line); border-radius: 16px 16px 16px 4px; padding: 14px 18px; font-size: 15.5px; line-height: 1.7; color: #2d333a; }
+.ai h4 { font-size: 15.5px; margin: 8px 0 2px; }
+.ai h4:first-child { margin-top: 0; }
+.ai ol, .ai ul { padding-left: 22px; }
+.ai .dim { color: var(--muted); }
+.photo { width: 220px; height: 150px; border-radius: 12px; background: linear-gradient(135deg, #f3e3c8, #e9c99a); display: grid; place-items: center; font-size: 15px; color: #7a5a2c; margin-bottom: 8px; }
+.photo div { text-align: center; } .photo div span { font-size: 46px; display: block; }
+table { border-collapse: collapse; width: 100%; margin: 6px 0 8px; font-size: 14.5px; background: #fff; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+th { background: #f0f2f4; font-weight: 700; }
+td.n { white-space: nowrap; }
+.tag { display: inline-block; font-size: 12.5px; color: var(--green); background: var(--green-bg); border-radius: 5px; padding: 0 6px; margin-left: 4px; }
+.x { color: #8c959f; text-decoration: line-through; }
+.hold { color: var(--red); font-weight: 700; }
+.ok { color: var(--green); font-weight: 700; }
+</style></head><body>
+
+<!-- 1 热量 -->
+<div class="demo g" id="demo-calorie">
+  <div class="bar"><b>📷 模式一 · 拍照算热量</b><span>示例对话（节选）</span></div>
+  <div class="body">
+    <div class="me"><div class="photo"><div><span>🍱</span>午饭照片</div></div>午饭，饭前</div>
+    <div class="ai">
+      <table>
+        <tr><th>食物</th><th>估计份量（参照物）</th><th>热量 kcal</th><th>蛋白质 g</th><th>碳水 g</th><th>脂肪 g</th></tr>
+        <tr><td>米饭</td><td>一碗八分满，约 200 g（标准饭碗）</td><td class="n">220–260</td><td>5</td><td>50</td><td>1</td></tr>
+        <tr><td>宫保鸡丁</td><td>约一掌半，鸡丁约 120 g<span class="tag">含油估算</span></td><td class="n">380–480</td><td>26</td><td>14</td><td>26</td></tr>
+        <tr><td>清炒菜心</td><td>约一拳，150 g<span class="tag">含油估算</span></td><td class="n">80–120</td><td>3</td><td>6</td><td>7</td></tr>
+      </table>
+      <b>合计 680–860 kcal</b>，占你今天目标（1800）的四成左右。<br>
+      最没把握：宫保鸡丁的油量。吃完拍一张盘底，能估得更准。<br>
+      吃法：先吃菜心和鸡丁，米饭吃一半就够。
+    </div>
+    <div class="me">今天汇总，戒指显示消耗 2300</div>
+    <div class="ai">今天共摄入 1650–1900 kcal，按中值算缺口约 520 kcal，在减脂的合理范围内。<br>明天只改一件事：晚饭的蛋白质只有 15 g，加一个鸡蛋或一盒豆腐。</div>
+  </div>
+</div>
+
+<!-- 2 三策 -->
+<div class="demo b" id="demo-sance">
+  <div class="bar"><b>⚖️ 模式二 · 三家 AI 出上中下策</b><span>示例对话（节选）</span></div>
+  <div class="body">
+    <div class="me">这是三家 AI 对"要不要辞职全职做自媒体"的回答，你来当裁判。<br><span style="opacity:.6">A：…… B：…… C：……</span></div>
+    <div class="ai">
+      <h4>1. 三家的共识</h4>
+      <ul><li>存款只够撑 8 个月，三家都不建议现在裸辞</li><li>先用 3 个月验证变现，粉丝数不算数</li></ul>
+      <h4>2. 分歧最大的点</h4>
+      A 主张先申请调岗降低工作量，C 主张直接谈兼职合同。我更同意 C：你的公司有兼职先例，可逆性更好。
+      <h4>3. 只有一家提到的风险</h4>
+      B 提到辞职后社保断缴会影响你明年的落户积分。这条不能忽略。
+      <h4>4. 综合中策 · 30 天清单</h4>
+      <ul><li>第 1 周：和主管谈兼职，同时整理已有 3000 粉的变现路径</li><li>第 2–3 周：上线一个 199 元的小产品，目标 20 单</li><li>第 4 周：复盘，满 20 单再谈离职时间</li></ul>
+      <h4>5. 切换信号</h4>
+      <span class="dim">连续两个月副业收入超过工资的一半 → 改走上策；第 4 周不到 5 单 → 退到下策。</span>
+    </div>
+  </div>
+</div>
+
+<!-- 3 反对者 -->
+<div class="demo r" id="demo-opp">
+  <div class="bar"><b>🛡️ 模式三 · AI 当反对者</b><span>示例对话（节选）</span></div>
+  <div class="body">
+    <div class="me">反驳我：我打算花 3 万报一个 AI 训练营，学完接私单回本。</div>
+    <div class="ai">
+      <ol>
+        <li><b>你没有验证过有人会买单。</b>你现在接到过几个付费咨询？如果是 0，回本计划就建立在假设上。<br><span class="dim">能证明我错的证据：过去半年有人主动问过你价格。</span></li>
+        <li><b>3 万买到的技能，免费资料大多也有。</b>差别在陪跑和人脉，你需要先说清楚自己缺的是哪个。<br><span class="dim">能证明我错的证据：训练营往期学员里，和你背景相近的人有公开的接单记录。</span></li>
+        <li class="dim">……（另外 3 条）</li>
+      </ol>
+      <b>3 个你可能答不上来的问题：</b>第一单客户从哪来？多少钱一单？几单回本？
+    </div>
+    <div class="me">我就是觉得现在不学就晚了。</div>
+    <div class="ai"><span class="hold">第 1 条不变。</span>"晚了"是一种感受，没有回答"谁会付钱"。给我一个愿意付钱的人，或者一个同类服务的成交价，这条我就划掉。</div>
+  </div>
+</div>
+
+</body></html>

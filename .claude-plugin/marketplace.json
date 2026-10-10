@@ -1,0 +1,23 @@
+{
+  "name": "wr-skills",
+  "owner": {
+    "name": "Windrise AI",
+    "url": "https://github.com/Hestamen"
+  },
+  "metadata": {
+    "description": "Windrise AI 的中文 AI Skills 合集。",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "wr-sunkit",
+      "description": "拍照算热量、三家 AI 出上中下策、让 AI 当你的反对者。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "productivity",
+      "keywords": ["diet", "calorie", "decision", "devil-advocate", "chinese"],
+      "skills": ["./skills/wr-sunkit"]
+    }
+  ]
+}

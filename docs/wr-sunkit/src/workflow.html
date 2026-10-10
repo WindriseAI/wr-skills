@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+#card { width: 1280px; height: 500px; background: #fff; padding: 48px 56px; }
+h1 { font-size: 30px; font-weight: 800; }
+h1 small { font-size: 18px; font-weight: 400; color: var(--muted); margin-left: 12px; }
+.row { margin-top: 44px; display: flex; align-items: center; gap: 0; }
+.box { border: 1.5px solid var(--line); border-radius: 16px; background: var(--paper); padding: 18px 20px; }
+.box .k { font-size: 14px; color: var(--muted); }
+.box .t { margin-top: 4px; font-size: 22px; font-weight: 800; }
+.box ul { margin-top: 10px; list-style: none; font-size: 15px; line-height: 1.7; color: #444c56; }
+.arrow { width: 50px; flex: none; position: relative; height: 2px; background: #b9c0c8; }
+.arrow::after { content: ""; position: absolute; right: -1px; top: -6px; border-left: 11px solid #b9c0c8; border-top: 7px solid transparent; border-bottom: 7px solid transparent; }
+.s1 { width: 190px; }
+.ais { display: flex; flex-direction: column; gap: 14px; }
+.ai { width: 236px; border: 1.5px solid #b8d2f3; background: var(--blue-bg); border-radius: 14px; padding: 12px 16px; }
+.ai b { font-size: 18px; color: var(--blue); }
+.ai .p { margin-top: 6px; display: flex; gap: 6px; }
+.ai .p span { font-size: 14px; border-radius: 6px; padding: 2px 9px; background: #fff; border: 1px solid #c9dcf5; }
+.ai .p span.mid { background: var(--blue); color: #fff; border-color: var(--blue); }
+.judge { width: 210px; border-color: #b8d2f3; }
+.judge .t { color: var(--blue); }
+.opp { width: 196px; border-color: #f0c2bd; background: var(--red-bg); }
+.opp .t { color: var(--red); }
+.go { width: 132px; text-align: center; background: var(--ink); border-color: var(--ink); color: #fff; }
+.go .k { color: #aab2bb; }
+.loop { position: absolute; left: 850px; top: 372px; width: 180px; font-size: 14px; color: var(--red); text-align: center; line-height: 1.5; }
+.note { position: absolute; left: 56px; bottom: 30px; font-size: 15px; color: var(--muted); }
+</style></head><body>
+<div id="card">
+  <h1>三策 + 反对者：一个大决定的完整流程<small>模式二接模式三</small></h1>
+  <div class="row">
+    <div class="box s1"><div class="k">第 1 步 · 你来填</div><div class="t">现状卡</div>
+      <ul><li>要决定的事</li><li>现在的情况</li><li>硬约束 · 底线</li><li>截止时间</li></ul></div>
+    <div class="arrow"></div>
+    <div class="ais">
+      <div class="ai"><b>AI 甲</b><div class="p"><span>上策</span><span class="mid">中策</span><span>下策</span></div></div>
+      <div class="ai"><b>AI 乙</b><div class="p"><span>上策</span><span class="mid">中策</span><span>下策</span></div></div>
+      <div class="ai"><b>AI 丙</b><div class="p"><span>上策</span><span class="mid">中策</span><span>下策</span></div></div>
+    </div>
+    <div class="arrow"></div>
+    <div class="box judge"><div class="k">第 3 步 · 交叉对比</div><div class="t">裁判</div>
+      <ul><li>三家的共识</li><li>分歧和谁更对</li><li>只有一家提到的风险</li><li>综合中策 · 30 天清单</li></ul></div>
+    <div class="arrow"></div>
+    <div class="box opp"><div class="k">第 4 步 · 模式三</div><div class="t">反对者</div>
+      <ul><li>5 条反对理由</li><li>3 个答不上的问题</li><li>只认新事实</li></ul></div>
+    <div class="arrow"></div>
+    <div class="box go"><div class="k">打不倒</div><div class="t">再执行</div></div>
+  </div>
+  <div class="loop">被问倒了？<br>回到现状卡补信息</div>
+  <div class="note">第 2 步：同一段提示词分别发给三家不同公司的 AI。模型不同，盲点就不完全重合。</div>
+</div>
+</body></html>

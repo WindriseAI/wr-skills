@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+#card { width: 1280px; height: 640px; background: #fbfaf7; padding: 72px 80px; }
+.dots { position: absolute; inset: 0; background-image: radial-gradient(#d9d5cc 1px, transparent 1px); background-size: 22px 22px; opacity: .55; }
+.top { position: relative; display: flex; align-items: baseline; gap: 22px; }
+h1 { font-size: 76px; font-weight: 800; letter-spacing: -1px; }
+h1 span { color: #b4532a; }
+.tag { font-size: 22px; color: var(--muted); border: 1.5px solid #d6d1c7; border-radius: 999px; padding: 6px 18px; background: #fff; }
+.sub { position: relative; margin-top: 18px; font-size: 30px; font-weight: 600; color: #3a3f45; }
+.cards { position: relative; margin-top: 56px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+.c { background: #fff; border: 1.5px solid var(--line); border-radius: 22px; padding: 28px 28px 26px; box-shadow: 0 10px 30px rgba(40,30,10,.06); }
+.c .icon { width: 58px; height: 58px; border-radius: 16px; display: grid; place-items: center; font-size: 32px; }
+.c h2 { margin-top: 18px; font-size: 30px; font-weight: 800; }
+.c p { margin-top: 10px; font-size: 19px; line-height: 1.55; color: var(--muted); }
+.g .icon { background: var(--green-bg); } .g h2 { color: var(--green); }
+.b .icon { background: var(--blue-bg); } .b h2 { color: var(--blue); }
+.r .icon { background: var(--red-bg); } .r h2 { color: var(--red); }
+.foot { position: absolute; left: 80px; right: 80px; bottom: 40px; display: flex; justify-content: space-between; font-size: 18px; color: #8a8f96; }
+</style></head><body>
+<div id="card">
+  <div class="dots"></div>
+  <div class="top"><h1>wr-<span>sunkit</span></h1><div class="tag">Agent Skill · 中文</div></div>
+  <div class="sub">把 AI 当成你的营养师、军师和反对者</div>
+  <div class="cards">
+    <div class="c g"><div class="icon">📷</div><h2>拍照算热量</h2><p>饭前饭后各拍一张，估出这顿吃了多少，睡前汇总一天</p></div>
+    <div class="c b"><div class="icon">⚖️</div><h2>三家 AI 出上中下策</h2><p>同一份现状交给三家 AI，交叉对比，取稳妥的中策</p></div>
+    <div class="c r"><div class="icon">🛡️</div><h2>AI 当反对者</h2><p>不许附和，专找你的计划会失败的理由</p></div>
+  </div>
+  <div class="foot"><span>Claude Code · Codex · 其他支持 Skills 的 Agent</span><span>没有 Skill 的 AI 也能用提示词清单</span></div>
+</div>
+</body></html>
