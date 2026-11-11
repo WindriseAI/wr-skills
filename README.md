@@ -5,7 +5,7 @@
 > Windrise AI 的中文 AI Skills 合集。把日常用 AI 的好习惯做成 Skill，装上就能用。
 
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/license-CC%20BY--NC%204.0-16A34A.svg?style=flat-square)](LICENSE)
-[![Skills](https://img.shields.io/badge/skills-1-2563EB.svg?style=flat-square)](#skills-一览)
+[![Skills](https://img.shields.io/badge/skills-2-2563EB.svg?style=flat-square)](#skills-一览)
 [![中文](https://img.shields.io/badge/语言-中文-B4532A.svg?style=flat-square)](#)
 
 **支持：Claude Code、Codex、claude.ai，以及其他支持 Skills 的 Agent。** 每个 Skill 都附一份提示词清单，用的 AI 不支持 Skill 也能直接复制。
@@ -17,6 +17,7 @@
 | Skill | 一句话 | 文档 | 提示词清单 |
 | --- | --- | --- | --- |
 | [wr-sunkit](docs/wr-sunkit/README.md) | 拍照算热量、三家 AI 出上中下策、让 AI 当你的反对者 | [说明](docs/wr-sunkit/README.md) | [复制用](docs/wr-sunkit/提示词清单.md) |
+| [wr-geo](docs/wr-geo/README.md) | 官网上线前后的 SEO / GEO 体检：实测线上、写契约、用独立检查验收 | [说明](docs/wr-geo/README.md) | [复制用](docs/wr-geo/提示词清单.md) |
 
 新的 Skill 会陆续加进来，Star 或 Watch 这个仓库就能收到更新。
 

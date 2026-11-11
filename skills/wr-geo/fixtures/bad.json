@@ -1,0 +1,87 @@
+{
+  "name": "bad",
+  "root": "https://www.example.com",
+  "language": {
+    "htmlLang": "en",
+    "titleCjk": "forbid",
+    "descriptionCjk": "forbid",
+    "descriptionLength": [110, 165],
+    "rawHtmlNoCjk": true
+  },
+  "product": {
+    "name": "Example App",
+    "alternateName": "示例",
+    "email": "hello@example.com"
+  },
+  "openGraph": {
+    "required": ["og:type", "og:site_name", "og:title", "og:description"],
+    "imageMinWidth": 1200,
+    "imageMinHeight": 630,
+    "twitterCard": "summary_large_image"
+  },
+  "pages": [
+    {
+      "path": "/",
+      "canonical": "https://www.example.com/",
+      "hreflang": {
+        "en": "https://www.example.com/",
+        "zh-CN": "https://www.example.cn/",
+        "x-default": "https://www.example.com/"
+      },
+      "titleContains": ["Example App"],
+      "descriptionContains": ["Example App"],
+      "h1": "Make your AI work on your own computer",
+      "lead": { "contains": "Example App", "within": 80, "unit": "words" },
+      "mustContain": ["$4.99"]
+    },
+    {
+      "path": "/pricing",
+      "canonical": "https://www.example.com/pricing",
+      "hreflang": null,
+      "titleContains": ["Example App"],
+      "descriptionContains": ["Example App"],
+      "mustContain": ["$12.99", "$39.99"]
+    }
+  ],
+  "robots": { "file": "robots.txt" },
+  "sitemap": { "file": "sitemap.xml", "requireLastmod": true },
+  "llmsTxt": {
+    "file": "llms.txt",
+    "firstLine": "# Example App",
+    "contains": ["Checked on: 2026-11-12", "$4.99"],
+    "notMatch": ["\\.(exe|dmg|apk)"]
+  },
+  "structuredData": {
+    "forbidden": ["aggregateRating", "\"review\"", "FAQPage", "HowTo", "downloadUrl"],
+    "pages": [
+      {
+        "path": "/",
+        "require": [
+          {
+            "type": "Organization",
+            "fields": ["name", "alternateName", "url", "logo", "email"],
+            "equals": { "name": "Example App", "email": "hello@example.com" },
+            "fileFields": ["logo"]
+          },
+          {
+            "type": "WebSite",
+            "fields": ["name", "url", "inLanguage"],
+            "equals": { "inLanguage": "en" }
+          },
+          {
+            "type": "SoftwareApplication",
+            "fields": ["name", "applicationCategory", "operatingSystem", "description"],
+            "equals": { "name": "Example App", "applicationCategory": "UtilitiesApplication" }
+          }
+        ],
+        "offers": { "node": "SoftwareApplication", "prices": ["0", "4.99"], "currency": "USD" }
+      }
+    ]
+  },
+  "siteWide": {
+    "forbiddenText": ["open source"],
+    "forbiddenHtml": [],
+    "noindexPaths": ["404.html", "pay/"],
+    "forbiddenPaths": ["private.html"]
+  }
+}

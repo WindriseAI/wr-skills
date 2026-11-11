@@ -1,0 +1,101 @@
+{
+  "name": "example.com",
+  "root": "https://www.example.com",
+  "language": {
+    "htmlLang": "en",
+    "titleCjk": "forbid",
+    "descriptionCjk": "forbid",
+    "descriptionLength": [110, 165],
+    "rawHtmlNoCjk": true
+  },
+  "product": {
+    "name": "Example Product",
+    "alternateName": "示例产品",
+    "email": "hello@example.com"
+  },
+  "openGraph": {
+    "required": ["og:type", "og:site_name", "og:title", "og:description"],
+    "imageMinWidth": 1200,
+    "imageMinHeight": 630,
+    "twitterCard": "summary_large_image"
+  },
+  "pages": [
+    {
+      "path": "/",
+      "canonical": "https://www.example.com/",
+      "hreflang": {
+        "en": "https://www.example.com/",
+        "zh-CN": "https://www.example.org/",
+        "x-default": "https://www.example.com/"
+      },
+      "titleContains": ["Example Product"],
+      "descriptionContains": ["Example Product"],
+      "h1": "The headline that is actually on the page",
+      "lead": { "contains": "Example Product", "within": 80, "unit": "words" },
+      "mustContain": ["$4.99"],
+      "mustNotContain": ["coming soon in 2025"]
+    },
+    {
+      "path": "/pricing",
+      "canonical": "https://www.example.com/pricing",
+      "hreflang": null,
+      "titleContains": ["Example Product"],
+      "descriptionContains": ["Example Product"],
+      "mustContain": ["$12.99"]
+    },
+    {
+      "path": "/privacy",
+      "canonical": "https://www.example.com/privacy",
+      "hreflang": null,
+      "sitemap": true
+    }
+  ],
+  "robots": {
+    "file": "robots.txt"
+  },
+  "sitemap": {
+    "file": "sitemap.xml",
+    "requireLastmod": true
+  },
+  "llmsTxt": {
+    "file": "llms.txt",
+    "firstLine": "# Example Product",
+    "contains": ["Checked on: 2026-11-12", "$4.99"],
+    "notMatch": ["\\.(exe|dmg|apk)"]
+  },
+  "structuredData": {
+    "forbidden": ["aggregateRating", "\"review\"", "FAQPage", "HowTo", "downloadUrl"],
+    "pages": [
+      {
+        "path": "/",
+        "require": [
+          {
+            "type": "Organization",
+            "fields": ["name", "alternateName", "url", "logo", "email"],
+            "equals": { "name": "Example Product", "email": "hello@example.com" },
+            "fileFields": ["logo"]
+          },
+          {
+            "type": "WebSite",
+            "fields": ["name", "url", "inLanguage"],
+            "equals": { "inLanguage": "en" }
+          },
+          {
+            "type": "SoftwareApplication",
+            "fields": ["name", "applicationCategory", "operatingSystem", "description"],
+            "equals": { "name": "Example Product", "applicationCategory": "UtilitiesApplication" }
+          }
+        ],
+        "offers": { "node": "SoftwareApplication", "prices": ["0", "4.99"], "currency": "USD" }
+      }
+    ]
+  },
+  "siteWide": {
+    "forbiddenText": ["open source"],
+    "forbiddenHtml": [
+      { "pattern": "github\\.com/example/private-repo", "why": "私有仓库地址会 404" }
+    ],
+    "noindexPaths": ["404.html", "pay/"],
+    "forbiddenPaths": ["pricing.html", "pricing/index.html"]
+  }
+}

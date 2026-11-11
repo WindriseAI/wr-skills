@@ -1,0 +1,13 @@
+# Example App
+
+Example App lets an AI assistant open files, run commands and drive the browser on your own computer, with the accounts you already use.
+
+Checked on: 2026-11-12
+
+Platform: Windows 10 and Windows 11 (64-bit).
+
+Plans: free for five hours a day; monthly $4.99; quarterly $12.99; yearly $39.99.
+
+Pages:
+- https://www.example.com/
+- https://www.example.com/pricing

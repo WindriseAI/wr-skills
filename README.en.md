@@ -13,6 +13,7 @@ Works with Claude Code, Codex, claude.ai and other agents that support Skills. T
 | Skill | What it does |
 | --- | --- |
 | [wr-sunkit](docs/wr-sunkit/README.md) | Calorie counting from meal photos, best / middle / fallback plans from three different AIs, and an AI that argues against you |
+| [wr-geo](docs/wr-geo/README.md) | SEO / GEO audit for a product site: measure the live site, write a byte-fixed contract, then verify with an independent checklist |
 
 ### wr-sunkit
 
