@@ -5,7 +5,7 @@
 > Windrise AI 的中文 AI Skills 合集与软件工程实战体系。把日常和做软件时验证过的好习惯做成独立 Skill 和零依赖钩子脚本，装上就能用。
 
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/license-CC%20BY--NC%204.0-16A34A.svg?style=flat-square)](LICENSE)
-[![Skills](https://img.shields.io/badge/skills-9-2563EB.svg?style=flat-square)](#skills-一览)
+[![Skills](https://img.shields.io/badge/skills-10-2563EB.svg?style=flat-square)](#skills-一览)
 [![Hooks](https://img.shields.io/badge/hooks-4-0F766E.svg?style=flat-square)](#通用钩子脚本)
 [![中文](https://img.shields.io/badge/语言-中文-B4532A.svg?style=flat-square)](#)
 
@@ -15,13 +15,14 @@
 
 ## Skills 一览
 
-### 风起软件工程 7 件套（可单装，可一键全装）
+### 风起软件工程 8 件套（可单装，可一键全装）
 
-按「定需求 → 拆活干 → 磨体验 → 换人审 → 跑真测 → 写人话 → 落钩子」完整串起个人与小团队带 AI 做软件的全流程，每个包高内聚、零耦合。
+按「定需求 → 消耦合 → 拆活干 → 磨体验 → 换人审 → 跑真测 → 写人话 → 落钩子」完整串起个人与小团队带 AI 做软件的全流程，每个包高内聚、零耦合。
 
 | Skill | 一句话 | 文档 | 提示词清单 |
 | --- | --- | --- | --- |
 | [wr-ask-first](docs/wr-ask-first/README.md) | 先质疑挑坑再问透立据，搜齐 10 个现成开源方案，当面指出风险与矛盾，用决策树追问并写入 `docs/SPEC.md` | [说明](docs/wr-ask-first/README.md) | [复制用](docs/wr-ask-first/提示词清单.md) |
+| [wr-axiomatic-design](docs/wr-axiomatic-design/README.md) | 用 MIT 公理设计消掉反向耦合，提取 FR 与 DP 画出设计矩阵，抽唯一真源并重排顺序收敛为下三角阵后再分桌并发 | [说明](docs/wr-axiomatic-design/README.md) | [复制用](docs/wr-axiomatic-design/提示词清单.md) |
 | [wr-split-work](docs/wr-split-work/README.md) | 多代理分桌并行，总协调人只拆活审回执，一活一棵独立 worktree，四档难度派活，先砍废包减重再多路提速 | [说明](docs/wr-split-work/README.md) | [复制用](docs/wr-split-work/提示词清单.md) |
 | [wr-ux-craft](docs/wr-ux-craft/README.md) | 麻烦归程序，动得有来回，用 8 条省心规矩、按状态变化查 7 条跟手动效、斜向防劫持走廊、任意条数据扩容和二三阶推演把界面做顺手 | [说明](docs/wr-ux-craft/README.md) | [复制用](docs/wr-ux-craft/提示词清单.md) |
 | [wr-skeptic-audit](docs/wr-skeptic-audit/README.md) | 三席物理隔离验货，由禁读源码的极懒初中生审交互、禁读源码的初中生审文案，再由全新只读老兵工程师看 diff 总审 | [说明](docs/wr-skeptic-audit/README.md) | [复制用](docs/wr-skeptic-audit/提示词清单.md) |
@@ -89,6 +90,7 @@ npx -y skills add WindriseAI/wr-skills -g --all
 
 ```bash
 npx -y skills add WindriseAI/wr-skills -g --skill wr-ask-first
+npx -y skills add WindriseAI/wr-skills -g --skill wr-axiomatic-design
 npx -y skills add WindriseAI/wr-skills -g --skill wr-split-work
 npx -y skills add WindriseAI/wr-skills -g --skill wr-ux-craft
 npx -y skills add WindriseAI/wr-skills -g --skill wr-skeptic-audit
@@ -101,7 +103,7 @@ npx -y skills add WindriseAI/wr-skills -g --skill wr-hook-forge
 
 ```bash
 claude plugin marketplace add WindriseAI/wr-skills
-# 装整套风起工程 7 件套
+# 装整套风起工程 8 件套
 claude plugin install wr-engineering@wr-skills
 # 或者单装任意一个
 claude plugin install wr-ask-first@wr-skills
@@ -132,8 +134,9 @@ claude plugin install wr-sunkit@wr-skills
 
 ```text
 wr-skills/
-├── skills/                  # 9 个独立 Skill 本体，每个文件夹可单独安装
+├── skills/                  # 10 个独立 Skill 本体，每个文件夹可单独安装
 │   ├── wr-ask-first/SKILL.md
+│   ├── wr-axiomatic-design/SKILL.md
 │   ├── wr-split-work/SKILL.md
 │   ├── wr-ux-craft/SKILL.md
 │   ├── wr-skeptic-audit/SKILL.md

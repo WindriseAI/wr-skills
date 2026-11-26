@@ -21,7 +21,7 @@
     },
     {
       "name": "wr-geo",
-      "description": "官网 SEO / GEO 体检与修复：实测线上、写契约、用独立检查验收。",
+      "description": "官网 SEO / GEO 体检与修复，先实测线上，再写契约，最后用独立检查验收。",
       "source": "./",
       "strict": false,
       "version": "1.0.0",
@@ -31,7 +31,7 @@
     },
     {
       "name": "wr-ask-first",
-      "description": "先质疑挑坑再问透立据：搜齐 10 个现成开源方案、当面挑出隐患、决策树追问并落盘 docs/SPEC.md。",
+      "description": "先质疑挑坑再问透立据，搜齐 10 个现成开源方案、当面挑出隐患、决策树追问并落盘 docs/SPEC.md。",
       "source": "./",
       "strict": false,
       "version": "1.0.0",
@@ -40,8 +40,18 @@
       "skills": ["./skills/wr-ask-first"]
     },
     {
+      "name": "wr-axiomatic-design",
+      "description": "用 MIT 公理设计验明无耦合或下三角准耦合，抽取唯一真源消掉反向耦合后再分桌并发。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "engineering",
+      "keywords": ["axiomatic-design", "architecture", "decoupling", "matrix", "chinese"],
+      "skills": ["./skills/wr-axiomatic-design"]
+    },
+    {
       "name": "wr-split-work",
-      "description": "多代理分桌并行：总协调人只拆活审回执，一活一棵独立 worktree，四档难度派活，砍废包与并发提速。",
+      "description": "多代理分桌并行，总协调人只拆活审回执，一活一棵独立 worktree，四档难度派活，砍废包与并发提速。",
       "source": "./",
       "strict": false,
       "version": "1.0.0",
@@ -51,7 +61,7 @@
     },
     {
       "name": "wr-ux-craft",
-      "description": "麻烦归程序，动得有来回：8 条省心规矩、按状态变化查 7 条跟手动效、斜向安全走廊、任意条数据弹性扩容与二三阶推演。",
+      "description": "麻烦归程序，动得有来回，8 条省心规矩、按状态变化查 7 条跟手动效、斜向安全走廊、任意条数据弹性扩容与二三阶推演。",
       "source": "./",
       "strict": false,
       "version": "1.0.0",
@@ -61,7 +71,7 @@
     },
     {
       "name": "wr-skeptic-audit",
-      "description": "三席物理隔离验货：禁读源码极懒初中生审交互、禁读源码初中生审文案、全新只读老兵工程师看 diff 总审。",
+      "description": "三席物理隔离验货，禁读源码极懒初中生审交互、禁读源码初中生审文案、全新只读老兵工程师看 diff 总审。",
       "source": "./",
       "strict": false,
       "version": "1.0.0",
@@ -71,7 +81,7 @@
     },
     {
       "name": "wr-real-qa",
-      "description": "真路径验收与破测试排雷：改动映射禁 UNMAPPED/ZERO_RUN、破测试突变探针、几何像素裁切遮挡扫描、连败两次熔断。",
+      "description": "真路径验收与破测试排雷，改动映射禁 UNMAPPED/ZERO_RUN、破测试突变探针、几何像素裁切遮挡扫描、连败两次熔断。",
       "source": "./",
       "strict": false,
       "version": "1.0.0",
@@ -81,7 +91,7 @@
     },
     {
       "name": "wr-plain-cn",
-      "description": "去模型腔平实中文写作：核实 5 件物理细节再动笔、零脑补心理戏、硬封禁用句式与黑话、22 项机器腔指纹自查。",
+      "description": "去模型腔平实中文写作，核实 5 件物理细节再动笔、零脑补心理戏、硬封禁用句式与黑话、22 项机器腔指纹自查。",
       "source": "./",
       "strict": false,
       "version": "1.0.0",
@@ -91,7 +101,7 @@
     },
     {
       "name": "wr-hook-forge",
-      "description": "同坑二次写进钩子：零例外硬规矩固化为秒级静态脚本，先挂 observe 观察档再切 enforce 硬拦。",
+      "description": "同坑二次写进钩子，零例外硬规矩固化为秒级静态脚本，先挂 observe 观察档再切 enforce 硬拦。",
       "source": "./",
       "strict": false,
       "version": "1.0.0",
@@ -101,7 +111,7 @@
     },
     {
       "name": "wr-engineering",
-      "description": "风起软件工程 7 件套一键全装（从需求挑坑、分桌并行、体验动效、三席验货、真路径测试、平实中文到确定性钩子）。",
+      "description": "风起软件工程 8 件套一键全装（从需求挑坑、公理去耦合、分桌并行、体验动效、三席验货、真路径测试、平实中文到确定性钩子）。",
       "source": "./",
       "strict": false,
       "version": "1.0.0",
@@ -109,6 +119,7 @@
       "keywords": ["engineering", "workflow", "bundle", "chinese"],
       "skills": [
         "./skills/wr-ask-first",
+        "./skills/wr-axiomatic-design",
         "./skills/wr-split-work",
         "./skills/wr-ux-craft",
         "./skills/wr-skeptic-audit",
