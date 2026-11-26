@@ -42,7 +42,7 @@
 
 ## 通用钩子脚本
 
-文档里写十遍感叹号，上下文一长 AI 照样漏看。`hooks/` 目录提供 4 个纯 Node.js 标准库编写、零第三方依赖、跨平台通用的确定性脚本，同时兼容 Claude Code 与 Antigravity 钩子协议，默认支持 `observe`（只记日志不拦截）和 `enforce`（硬拦）两档切换。
+文档里写十遍感叹号，上下文一长 AI 照样漏看。`hooks/` 目录提供 4 个纯 Node.js 标准库编写、零第三方依赖、跨平台通用的确定性脚本，按 Claude Code 与 Antigravity 钩子输入输出格式编写并支持 Git `pre-commit`，默认支持 `observe`（只记日志不拦截）和 `enforce`（硬拦）两档切换。
 
 | 脚本 | 触发时机 | 干什么用 |
 | --- | --- | --- |
@@ -51,7 +51,7 @@
 | [hooks/speak-before-act-hook.mjs](hooks/speak-before-act-hook.mjs) | `PreToolUse` + `Stop` | 收到用户消息后若一句话没说就闷头调工具，先温和提醒一次；回复收尾时可选扫描裸露长哈希、会话标识与公文头 |
 | [hooks/copy-and-privacy-lint.mjs](hooks/copy-and-privacy-lint.mjs) | `pre-commit` / CI | 运行时动态读取本机用户名与家目录，防止私密路径外泄；同步扫描中文禁用句式、禁用符号与自定义术语表 |
 
-配套模板在 [examples/](examples/) 目录，包含 `wr.config.example.json`、`AGENTS.template.md`、`hooks.claude.json`、`hooks.agy.json` 和 `acceptance.example.json`。运行下面这行自测脚本，可以验证全部 4 个钩子的放行、拦截与双模式切换。
+配套示例在 [examples/](examples/) 目录，包含 `wr.config.example.json`、`AGENTS.template.md`、`hooks.claude.json`、`hooks.agy.json` 和 `acceptance.example.json`。运行下面这行自测脚本可跑完 17 项双协议离线单测，验证全部 4 个钩子的放行、拦截与双模式切换。
 
 ```bash
 node hooks/test-hooks.mjs
@@ -126,7 +126,7 @@ claude plugin install wr-sunkit@wr-skills
 
 ### 方式五 手动安装
 
-把 `skills/` 下需要的文件夹整个复制到你的全局或项目技能目录（如 Claude Code 的全局技能目录或 Codex 的 `.agents/skills/`）。如果要启用确定性钩子，把 `hooks/` 与 `examples/wr.config.example.json` 复制到项目根目录，改名为 `wr.config.json` 后按 `examples/hooks.claude.json` 或 `examples/hooks.agy.json` 挂载。
+把 `skills/` 下需要的文件夹整个复制到你的全局或项目技能目录（如 Claude Code 的全局技能目录或 Codex 的 `.agents/skills/`）。如果要启用确定性钩子，把 `hooks/` 与 `examples/wr.config.example.json` 复制到项目根目录，改名为 `wr.config.json` 后参照 `examples/hooks.claude.json`、`examples/hooks.agy.json` 或 Git `pre-commit` 接入（启用前建议先跑通 `node hooks/test-hooks.mjs` 的 17 项双协议离线单测）。
 
 ## 仓库结构
 

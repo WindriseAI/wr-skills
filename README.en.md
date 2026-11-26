@@ -33,14 +33,14 @@ Works with Claude Code, Codex, Cursor, Antigravity, claude.ai, and other agents 
 
 ## Universal Hooks
 
-Four zero-dependency Node.js standard-library scripts in `hooks/`, compatible with both Claude Code and Antigravity hook protocols, supporting `observe` and `enforce` modes:
+Four zero-dependency Node.js standard-library scripts in `hooks/`, written to the Claude Code and Antigravity hook input/output specifications plus Git `pre-commit` support, with `observe` and `enforce` modes:
 
 - `hooks/safety-redline-guard.mjs`: blocks credential access, unsafe deletions outside scratch/worktree paths, destructive git resets on main checkouts, and noisy desktop actions on quiet hosts (including unpacked batch tool arguments).
 - `hooks/evidence-before-pass-gate.mjs`: tracks files actually read during a session and blocks marking `passes: true` in acceptance reports when coverage is unmapped, zero tests ran, or cited evidence was never read.
 - `hooks/speak-before-act-hook.mjs`: prompts the agent to state its plan before calling tools on a new user turn, and optionally checks outgoing responses for raw hashes or boilerplate headers.
 - `hooks/copy-and-privacy-lint.mjs`: pre-commit / CI scanner that dynamically checks for local username/path leaks plus banned copywriting patterns.
 
-Configuration templates live in `examples/` (`wr.config.example.json`, `AGENTS.template.md`, `hooks.claude.json`, `hooks.agy.json`, `acceptance.example.json`). Verify all four hooks locally with `node hooks/test-hooks.mjs`.
+Configuration examples live in `examples/` (`wr.config.example.json`, `AGENTS.template.md`, `hooks.claude.json`, `hooks.agy.json`, `acceptance.example.json`). Verify all four hooks locally with the 17 offline dual-protocol unit tests via `node hooks/test-hooks.mjs`.
 
 ## Install
 
