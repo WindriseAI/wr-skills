@@ -87,7 +87,7 @@ wr-sunkit 把这几件事整理成可以直接装进 Agent 的 Skill，并补上
 ## 安装
 
 ```bash
-npx -y skills add Hestamen/wr-skills -g --skill wr-sunkit
+npx -y skills add WindriseAI/wr-skills -g --skill wr-sunkit
 ```
 
 Claude Code 插件市场、claude.ai 上传、手动安装等其他方式，见 [wr-skills 的安装说明](../../README.md#安装)。

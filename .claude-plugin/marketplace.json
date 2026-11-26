@@ -2,11 +2,11 @@
   "name": "wr-skills",
   "owner": {
     "name": "Windrise AI",
-    "url": "https://github.com/Hestamen"
+    "url": "https://github.com/WindriseAI"
   },
   "metadata": {
-    "description": "Windrise AI 的中文 AI Skills 合集。",
-    "version": "1.1.0"
+    "description": "Windrise AI 的中文 AI Skills 合集与软件工程实战工具箱。",
+    "version": "2.0.0"
   },
   "plugins": [
     {
@@ -28,6 +28,94 @@
       "category": "marketing",
       "keywords": ["seo", "geo", "search", "llms", "chinese"],
       "skills": ["./skills/wr-geo"]
+    },
+    {
+      "name": "wr-ask-first",
+      "description": "先质疑挑坑再问透立据：搜齐 10 个现成开源方案、当面挑出隐患、决策树追问并落盘 docs/SPEC.md。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "engineering",
+      "keywords": ["spec", "requirements", "architecture", "grill-me", "chinese"],
+      "skills": ["./skills/wr-ask-first"]
+    },
+    {
+      "name": "wr-split-work",
+      "description": "多代理分桌并行：总协调人只拆活审回执，一活一棵独立 worktree，四档难度派活，砍废包与并发提速。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "engineering",
+      "keywords": ["worktree", "parallel", "orchestration", "multi-agent", "chinese"],
+      "skills": ["./skills/wr-split-work"]
+    },
+    {
+      "name": "wr-ux-craft",
+      "description": "麻烦归程序，动得有来回：8 条省心规矩、按状态变化查 7 条跟手动效、斜向安全走廊、任意条数据弹性扩容与二三阶推演。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "design",
+      "keywords": ["ux", "motion", "interaction", "responsive", "chinese"],
+      "skills": ["./skills/wr-ux-craft"]
+    },
+    {
+      "name": "wr-skeptic-audit",
+      "description": "三席物理隔离验货：禁读源码极懒初中生审交互、禁读源码初中生审文案、全新只读老兵工程师看 diff 总审。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "engineering",
+      "keywords": ["audit", "review", "readonly", "skeptic", "chinese"],
+      "skills": ["./skills/wr-skeptic-audit"]
+    },
+    {
+      "name": "wr-real-qa",
+      "description": "真路径验收与破测试排雷：改动映射禁 UNMAPPED/ZERO_RUN、破测试突变探针、几何像素裁切遮挡扫描、连败两次熔断。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "testing",
+      "keywords": ["qa", "testing", "mutation", "playwright", "chinese"],
+      "skills": ["./skills/wr-real-qa"]
+    },
+    {
+      "name": "wr-plain-cn",
+      "description": "去模型腔平实中文写作：核实 5 件物理细节再动笔、零脑补心理戏、硬封禁用句式与黑话、22 项机器腔指纹自查。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "writing",
+      "keywords": ["writing", "copywriting", "chinese", "plain-language"],
+      "skills": ["./skills/wr-plain-cn"]
+    },
+    {
+      "name": "wr-hook-forge",
+      "description": "同坑二次写进钩子：零例外硬规矩固化为秒级静态脚本，先挂 observe 观察档再切 enforce 硬拦。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "engineering",
+      "keywords": ["hooks", "guard", "lint", "automation", "chinese"],
+      "skills": ["./skills/wr-hook-forge"]
+    },
+    {
+      "name": "wr-engineering",
+      "description": "风起软件工程 7 件套一键全装（从需求挑坑、分桌并行、体验动效、三席验货、真路径测试、平实中文到确定性钩子）。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "engineering",
+      "keywords": ["engineering", "workflow", "bundle", "chinese"],
+      "skills": [
+        "./skills/wr-ask-first",
+        "./skills/wr-split-work",
+        "./skills/wr-ux-craft",
+        "./skills/wr-skeptic-audit",
+        "./skills/wr-real-qa",
+        "./skills/wr-plain-cn",
+        "./skills/wr-hook-forge"
+      ]
     }
   ]
 }

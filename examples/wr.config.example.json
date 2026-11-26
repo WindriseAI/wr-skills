@@ -1,0 +1,52 @@
+{
+  "hookMode": "observe",
+  "observeLogPath": ".wr-hook-observe.jsonl",
+  "quietMainMachine": false,
+  "modelTiers": {
+    "tier1_architect": "your-top-reasoning-or-design-model",
+    "tier2_builder": "your-main-coding-model",
+    "tier3_reviewer": "your-second-vendor-review-model",
+    "tier4_runner": "your-fast-economical-model"
+  },
+  "safetyGuard": {
+    "allowedDeleteDirs": [
+      "dist",
+      "build",
+      "node_modules",
+      ".cache",
+      "worktrees"
+    ],
+    "extraProtectedPatterns": []
+  },
+  "evidenceGate": {
+    "targetFiles": [
+      "acceptance.json",
+      "batch-results.json"
+    ]
+  },
+  "speakBeforeAct": {
+    "checkStopResponse": true
+  },
+  "copyLint": {
+    "extensions": [
+      ".md",
+      ".txt",
+      ".html",
+      ".js",
+      ".mjs",
+      ".ts",
+      ".json",
+      ".css"
+    ],
+    "excludePaths": [
+      "node_modules",
+      ".git",
+      "dist",
+      "build"
+    ],
+    "customBannedWords": [],
+    "termReplacements": {
+      "旧产品名示例": "请改为新产品名"
+    }
+  }
+}

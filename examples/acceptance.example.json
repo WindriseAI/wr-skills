@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "updatedAt": "2026-01-01T00:00:00Z",
+  "commit": "REPLACE_WITH_CURRENT_SHORT_SHA",
+  "coverageGate": {
+    "changedFiles": [
+      "src/example-feature.js"
+    ],
+    "unmappedFiles": [],
+    "zeroRunSuites": [],
+    "waiverReason": ""
+  },
+  "items": [
+    {
+      "id": "qa-01",
+      "title": "核心主流程真路径验收",
+      "passes": false,
+      "evidence": "reports/qa-01-output.txt",
+      "notes": "默认 false，必须亲眼读过真实输出并核实无误后再改为 true。"
+    },
+    {
+      "id": "qa-02",
+      "title": "宽窄屏与深浅色像素裁切遮挡扫描归零",
+      "passes": false,
+      "evidence": "reports/qa-02-geometry.json",
+      "notes": "确认横向溢出、文字裁切与控件遮挡均为 0。"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./hooks/safety-redline-guard.mjs"
+          },
+          {
+            "type": "command",
+            "command": "node ./hooks/evidence-before-pass-gate.mjs --phase pre"
+          },
+          {
+            "type": "command",
+            "command": "node ./hooks/speak-before-act-hook.mjs --phase pre"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Read|View|read_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./hooks/evidence-before-pass-gate.mjs --phase post"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./hooks/speak-before-act-hook.mjs --phase stop"
+          }
+        ]
+      }
+    ]
+  }
+}

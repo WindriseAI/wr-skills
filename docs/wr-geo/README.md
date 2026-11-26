@@ -113,7 +113,7 @@ node skills/wr-geo/scripts/render.mjs out \
 ## 安装
 
 ```bash
-npx -y skills add Hestamen/wr-skills -g --skill wr-geo
+npx -y skills add WindriseAI/wr-skills -g --skill wr-geo
 ```
 
 Claude Code 插件市场、claude.ai 上传、手动安装等其他方式，见 [wr-skills 的安装说明](../../README.md#安装)。
