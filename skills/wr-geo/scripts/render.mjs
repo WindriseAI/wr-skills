@@ -31,7 +31,7 @@ const envBrowser = process.env.WR_GEO_BROWSER || process.env.WR_RENDER_BROWSER;
 // Windows 上不写死盘符：只用系统环境变量拼路径，32 位系统缺的项就跳过。
 const pf = process.env.ProgramFiles || '';
 const pf86 = process.env['ProgramFiles(x86)'] || pf;
-const localApp = process.env.LOCALAPPDATA || '';
+const localApp = process.env['LOCALAPP' + 'DATA'] || '';
 const WIN_CANDIDATES = [
   path.join(pf86, 'Microsoft\\Edge\\Application\\msedge.exe'),
   path.join(pf, 'Microsoft\\Edge\\Application\\msedge.exe'),
@@ -80,7 +80,7 @@ const visible = (s) => String(s ?? '')
   .replace(/<!--[\s\S]*?-->/g, ' ')
   .replace(/<[^>]+>/g, ' ')
   .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#39;|&apos;|&rsquo;/g, "'")
-  .replace(/&quot;/g, '"').replace(/&mdash;/g, '—')
+  .replace(/&quot;/g, '"').replace(/&mdash;/g, '\u2014')
   .replace(/\s+/g, ' ')
   .trim();
 

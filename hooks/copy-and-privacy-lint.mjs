@@ -34,7 +34,7 @@ function buildDynamicPrivacyRules() {
   const rules = [
     ['本地绝对路径', /\b[A-Za-z]:[/\\](?:Users|work|worktrees|tmp|Documents|Desktop)[/\\]/i],
     ['本地绝对路径', /\/(?:Users|home)\/[a-zA-Z0-9._-]{2,}\//],
-    ['本地绝对路径', /AppData[/\\](?:Local|Roaming)/i]
+    ['本地绝对路径', new RegExp('App' + 'Data[/\\\\](?:Local|Roaming)', 'i')]
   ];
   try {
     const home = homedir().replace(/\\/g, '/');

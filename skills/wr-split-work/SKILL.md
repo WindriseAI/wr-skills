@@ -65,7 +65,7 @@ git worktree add ../wt-test -b feat/real-tests main
 
 # 2. 在各自工作树分别启动独立的 Agent 会话并喂入任务书
 
-# 3. 全部收齐回执后，在主仓新建集成分支按顺序合入
+# 3. 全部收齐回执后在主仓新建集成分支按顺序合入
 git checkout -b integrate/wave-1 main
 git merge --no-ff feat/data-layer
 git merge --no-ff feat/ui-layout

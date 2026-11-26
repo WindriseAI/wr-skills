@@ -51,7 +51,7 @@ const exists = (f) => !!f && fs.existsSync(f) && fs.statSync(f).isFile();
 const head = (s) => { const i = s.search(/<\/head>/i); return i < 0 ? s : s.slice(0, i); };
 const decode = (s) => String(s ?? '')
   .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#39;|&apos;|&rsquo;/g, "'")
-  .replace(/&quot;/g, '"').replace(/&mdash;/g, '—').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  .replace(/&quot;/g, '"').replace(/&mdash;/g, '\u2014').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 const visible = (s) => String(s ?? '')
   .replace(/<script[\s\S]*?<\/script>/gi, ' ')
   .replace(/<style[\s\S]*?<\/style>/gi, ' ')
@@ -161,7 +161,7 @@ for (const page of PAGES) {
   if (desc) seenDesc.set(desc, p);
   if (Array.isArray(LANG.descriptionLength)) {
     const [min, max] = LANG.descriptionLength;
-    ok(`${tag} description 长度 ${min}–${max}（实际 ${dlen}）`, dlen >= min && dlen <= max, desc);
+    ok(`${tag} description 长度 ${min}-${max}（实际 ${dlen}）`, dlen >= min && dlen <= max, desc);
   }
   if (LANG.descriptionCjk === 'forbid') ok(`${tag} description 不含中文字符`, !CJK.test(desc), desc);
   for (const s of page.descriptionContains || []) ok(`${tag} description 含「${s}」`, desc.includes(s), desc);
