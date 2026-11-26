@@ -18,14 +18,14 @@
 
 ## 四步落盘流程
 
-1. **二分规矩**：软偏好留 `AGENTS.md`，零例外客观硬规矩（安全、证据、路径脱敏、禁词、计数同步）进脚本。
-2. **先挂 `observe` 观察档**：记录命中日志到 `.wr-hook-observe.jsonl` 但不拦断操作，跑一阵核查有没有误伤正常场景。
-3. **补齐三组自测**：覆盖正常放行、`enforce` 拦截（含批量包装参数）和 `observe` 留痕，全部跑绿。
-4. **切 `enforce` 硬拦**：把 `wr.config.json` 里的 `hookMode` 改为 `"enforce"`，违规直接阻断并给出精确行号与替代做法。
+1. **二分规矩**。软偏好留 `AGENTS.md`，零例外客观硬规矩（安全、证据、路径脱敏、禁词、计数同步）进脚本。
+2. **先挂 `observe` 观察档**。记录命中日志到 `.wr-hook-observe.jsonl` 但不拦断操作，跑一阵核查有没有误伤正常场景。
+3. **补齐三组自测**。覆盖正常放行、`enforce` 拦截（含批量包装参数）和 `observe` 留痕，全部跑绿。
+4. **切 `enforce` 硬拦**。把 `wr.config.json` 里的 `hookMode` 改为 `"enforce"`，违规直接阻断并给出精确行号与替代做法。
 
 ## 自带 4 个通用钩子
 
-仓库根目录 [hooks/](../../hooks/) 已提供 4 个纯 Node.js 标准库零依赖脚本与全量自测（`node hooks/test-hooks.mjs`），配套配置模板位于 [examples/](../../examples/)：
+仓库根目录 [hooks/](../../hooks/) 已提供 4 个纯 Node.js 标准库零依赖脚本与全量自测（`node hooks/test-hooks.mjs`），配套配置模板位于 [examples/](../../examples/)，一共下面这 4 个脚本。
 
 - `hooks/safety-redline-guard.mjs`
 - `hooks/evidence-before-pass-gate.mjs`
@@ -34,13 +34,13 @@
 
 ## 安装
 
-单装本 Skill：
+只装这一个技能，运行下面这行命令。
 
 ```bash
 npx -y skills add WindriseAI/wr-skills -g --skill wr-hook-forge
 ```
 
-一键安装全套风起技能：
+一键安装全套风起技能，运行下面这行命令。
 
 ```bash
 npx -y skills add WindriseAI/wr-skills -g --all

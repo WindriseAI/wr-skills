@@ -19,15 +19,15 @@
 
 ## 核心机制
 
-1. **角色切死**：总协调人只负责拆任务、查前置事实、审三句话回执与最终合并，绝不亲自写业务代码。
-2. **物理隔离**：通过 `git worktree` 让每条子线有独立目录与独立分支，文件白名单硬约束零重叠。
-3. **四档通用难度派活**：按 `tier1_architect`（架构与审美）、`tier2_builder`（逻辑攻坚）、`tier3_reviewer`（独立核查）、`tier4_runner`（机械跑腿）四档分工，不绑定任何具体供应商。
-4. **先减法后并发**：先砍冗余依赖与死代码把体积压薄，再把数据层、样式层、逻辑层、测试层拆成多路并行推进。
-5. **双路实操**：同时覆盖纯命令行 `git worktree` 通用方案，以及 Orca 多代理工作台调度方案。
+1. **角色切死**。总协调人只负责拆任务、查前置事实、审三句话回执与最终合并，绝不亲自写业务代码。
+2. **物理隔离**。通过 `git worktree` 让每条子线有独立目录与独立分支，文件白名单硬约束零重叠。
+3. **四档通用难度派活**。按 `tier1_architect`（架构与审美）、`tier2_builder`（逻辑攻坚）、`tier3_reviewer`（独立核查）、`tier4_runner`（机械跑腿）四档分工，不绑定任何具体供应商。
+4. **先减法后并发**。先砍冗余依赖与死代码把体积压薄，再把数据层、样式层、逻辑层、测试层拆成多路并行推进。
+5. **双路实操**。同时覆盖纯命令行 `git worktree` 通用方案，以及 Orca 多代理工作台调度方案。
 
 ## 配置示例
 
-在项目根目录放置 `wr.config.json`（完整模板见 [examples/wr.config.example.json](../../examples/wr.config.example.json)），按你手头的账号自定义四档模型：
+在项目根目录放置 `wr.config.json`（完整模板见 [examples/wr.config.example.json](../../examples/wr.config.example.json)），按你手头的账号自定义下面这四档模型。
 
 ```json
 {
@@ -42,13 +42,13 @@
 
 ## 安装
 
-单装本 Skill：
+只装这一个技能，运行下面这行命令。
 
 ```bash
 npx -y skills add WindriseAI/wr-skills -g --skill wr-split-work
 ```
 
-一键安装全套风起技能：
+一键安装全套风起技能，运行下面这行命令。
 
 ```bash
 npx -y skills add WindriseAI/wr-skills -g --all

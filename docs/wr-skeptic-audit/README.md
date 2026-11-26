@@ -2,7 +2,7 @@
 
 [← 返回 wr-skills](../../README.md) · [English](../../README.en.md#skills)
 
-> 三席物理隔离验货。把合并后的验货拆给三个彼此不见面的全新会话：禁读源码的极懒初中生审交互、禁读源码的初中生审文案、只读看 diff 的老兵工程师总审，一次揪清隐藏毛病。
+> 三席物理隔离验货。把合并后的验货拆给三个彼此不见面的全新会话，分别由禁读源码的极懒初中生审交互、禁读源码的初中生审文案、只读看 diff 的老兵工程师总审，一次揪清隐藏毛病。
 
 **支持 Claude Code、Codex、Cursor、Antigravity、claude.ai，以及其他支持 Skills 的 Agent。** 用的 AI 不支持 Skill，也可以直接复制 [提示词清单](提示词清单.md)。
 
@@ -28,13 +28,13 @@
 
 ## 安装
 
-单装本 Skill：
+只装这一个技能，运行下面这行命令。
 
 ```bash
 npx -y skills add WindriseAI/wr-skills -g --skill wr-skeptic-audit
 ```
 
-一键安装全套风起技能：
+一键安装全套风起技能，运行下面这行命令。
 
 ```bash
 npx -y skills add WindriseAI/wr-skills -g --all
