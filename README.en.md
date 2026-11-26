@@ -68,7 +68,7 @@ Or simply tell your Agent:
 
 > Please install all Skills from `github.com/WindriseAI/wr-skills` using `npx -y skills add WindriseAI/wr-skills -g --all`.
 
-claude.ai: download the Skill's zip from [Releases](https://github.com/WindriseAI/wr-skills/releases) and upload it on the Skills settings page.
+claude.ai: download the repository ZIP archive, extract it, zip the target `skills/<skill-name>` subfolder, and upload it on the Skills settings page (or paste `docs/<skill-name>/提示词清单.md` directly into chat).
 
 ## License
 

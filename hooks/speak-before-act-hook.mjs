@@ -28,11 +28,18 @@ function loadConfig(cwd) {
 function parseHookInput(rawText) {
   if (!rawText || !rawText.trim()) return null;
   const data = JSON.parse(rawText);
-  const isAgy = Boolean(data.toolCall || data.sessionId || data.transcriptPath || typeof data.response === 'string');
+  const isAgy = Boolean(
+    data.toolCall ||
+    data.sessionId ||
+    data.conversationId ||
+    data.hookEventName ||
+    data.transcriptPath ||
+    typeof data.response === 'string'
+  );
   return {
     protocol: isAgy ? 'agy' : 'claude',
-    event: String(data.hook_event_name || data.event || ''),
-    sessionId: String(data.session_id || data.sessionId || 'default'),
+    event: String(data.hookEventName || data.hook_event_name || data.event || ''),
+    sessionId: String(data.conversationId || data.session_id || data.sessionId || 'default'),
     turnId: String(data.turn_id || data.turnId || ''),
     transcriptPath: data.transcript_path || data.transcriptPath || '',
     transcript: Array.isArray(data.transcript) ? data.transcript : null,
@@ -202,10 +209,26 @@ function main() {
     }
   }
 
-  if (!reason) process.exit(0);
+  if (phase === 'stop' && parsed.protocol === 'agy') {
+    if (reason) {
+      recordObserve(cwd, config, phase, reason);
+    }
+    process.stdout.write('{}\n');
+    process.exit(0);
+  }
+
+  if (!reason) {
+    if (parsed.protocol === 'agy') {
+      process.stdout.write(JSON.stringify({ decision: 'allow' }) + '\n');
+    }
+    process.exit(0);
+  }
 
   if (mode === 'observe') {
     recordObserve(cwd, config, phase, reason);
+    if (parsed.protocol === 'agy') {
+      process.stdout.write(JSON.stringify({ decision: 'allow' }) + '\n');
+    }
     process.exit(0);
   }
 

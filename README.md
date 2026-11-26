@@ -122,7 +122,7 @@ claude plugin install wr-sunkit@wr-skills
 
 ### 方式四：claude.ai 网页版和 App
 
-在 [Releases](https://github.com/WindriseAI/wr-skills/releases) 下载对应 Skill 的 zip，到设置里的 Skills 页面上传。
+下载本仓库 ZIP 压缩包后解压，将 `skills/<技能名>` 文件夹单独打包成 `.zip` 上传到 claude.ai 设置里的 Skills 页面（或直接复制 `docs/<技能名>/提示词清单.md` 贴进对话使用）。
 
 ### 方式五：手动安装
 

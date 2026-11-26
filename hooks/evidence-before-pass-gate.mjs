@@ -28,13 +28,19 @@ function loadConfig(cwd) {
 function parseHookInput(rawText) {
   if (!rawText || !rawText.trim()) return null;
   const data = JSON.parse(rawText);
-  if (data.toolCall && typeof data.toolCall === 'object') {
+  const isAgy = Boolean(
+    (data.toolCall && typeof data.toolCall === 'object') ||
+    typeof data.hookEventName === 'string' ||
+    typeof data.conversationId === 'string'
+  );
+  if (isAgy) {
+    const tc = data.toolCall && typeof data.toolCall === 'object' ? data.toolCall : {};
     return {
       protocol: 'agy',
-      event: String(data.event || data.hook_event_name || ''),
-      sessionId: String(data.sessionId || data.session_id || 'default'),
-      toolName: String(data.toolCall.name || ''),
-      args: data.toolCall.args || {},
+      event: String(data.hookEventName || data.event || data.hook_event_name || ''),
+      sessionId: String(data.conversationId || data.sessionId || data.session_id || 'default'),
+      toolName: String(tc.name || ''),
+      args: tc.args || {},
       cwd: data.cwd || process.cwd()
     };
   }
@@ -180,16 +186,20 @@ function main() {
 
   if (phase === 'post') {
     const isReadTool = /read|view|slice/i.test(parsed.toolName);
-    if (!isReadTool) process.exit(0);
-    const paths = extractReadPaths(parsed.args);
-    const ledger = getLedgerPath(parsed.sessionId);
-    for (const p of paths) {
-      const key = normPath(p, cwd);
-      try {
-        appendFileSync(ledger, JSON.stringify({ ts: new Date().toISOString(), path: key }) + '\n', 'utf8');
-      } catch {
-        // 忽略
+    if (isReadTool) {
+      const paths = extractReadPaths(parsed.args);
+      const ledger = getLedgerPath(parsed.sessionId);
+      for (const p of paths) {
+        const key = normPath(p, cwd);
+        try {
+          appendFileSync(ledger, JSON.stringify({ ts: new Date().toISOString(), path: key }) + '\n', 'utf8');
+        } catch {
+          // 忽略
+        }
       }
+    }
+    if (parsed.protocol === 'agy') {
+      process.stdout.write('{}\n');
     }
     process.exit(0);
   }
@@ -233,6 +243,9 @@ function main() {
     if (reason) {
       if (mode === 'observe') {
         recordObserve(cwd, config, { file: w.path, reason });
+        if (parsed.protocol === 'agy') {
+          process.stdout.write(JSON.stringify({ decision: 'allow' }) + '\n');
+        }
         process.exit(0);
       }
       if (parsed.protocol === 'agy') {
@@ -242,6 +255,9 @@ function main() {
       process.stderr.write(reason + '\n');
       process.exit(2);
     }
+  }
+  if (parsed.protocol === 'agy') {
+    process.stdout.write(JSON.stringify({ decision: 'allow' }) + '\n');
   }
   process.exit(0);
 }

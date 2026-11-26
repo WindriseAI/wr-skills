@@ -27,11 +27,17 @@ function parseCliArgs(argv) {
 function parseHookInput(rawText) {
   if (!rawText || !rawText.trim()) return { protocol: 'claude', toolName: '', args: {}, raw: {} };
   const data = JSON.parse(rawText);
-  if (data.toolCall && typeof data.toolCall === 'object') {
+  const isAgy = Boolean(
+    (data.toolCall && typeof data.toolCall === 'object') ||
+    typeof data.hookEventName === 'string' ||
+    typeof data.conversationId === 'string'
+  );
+  if (isAgy) {
+    const tc = data.toolCall && typeof data.toolCall === 'object' ? data.toolCall : {};
     return {
       protocol: 'agy',
-      toolName: String(data.toolCall.name || ''),
-      args: data.toolCall.args || {},
+      toolName: String(tc.name || ''),
+      args: tc.args || {},
       cwd: data.cwd || process.cwd(),
       raw: data
     };
@@ -229,11 +235,17 @@ function main() {
 
   const reason = checkViolation(paths, commands, cwd, config);
   if (!reason) {
+    if (parsed.protocol === 'agy') {
+      process.stdout.write(JSON.stringify({ decision: 'allow' }) + '\n');
+    }
     process.exit(0);
   }
 
   if (mode === 'observe') {
     recordObserve(cwd, config, { toolName: parsed.toolName, reason, paths, commands });
+    if (parsed.protocol === 'agy') {
+      process.stdout.write(JSON.stringify({ decision: 'allow' }) + '\n');
+    }
     process.exit(0);
   }
 

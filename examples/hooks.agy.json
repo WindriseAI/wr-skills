@@ -1,23 +1,38 @@
 {
-  "hooks": {
+  "wr-guards": {
     "PreToolUse": [
       {
-        "command": "node ./hooks/safety-redline-guard.mjs"
-      },
-      {
-        "command": "node ./hooks/evidence-before-pass-gate.mjs --phase pre"
-      },
-      {
-        "command": "node ./hooks/speak-before-act-hook.mjs --phase pre"
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./hooks/safety-redline-guard.mjs"
+          },
+          {
+            "type": "command",
+            "command": "node ./hooks/evidence-before-pass-gate.mjs --phase pre"
+          },
+          {
+            "type": "command",
+            "command": "node ./hooks/speak-before-act-hook.mjs --phase pre"
+          }
+        ]
       }
     ],
     "PostToolUse": [
       {
-        "command": "node ./hooks/evidence-before-pass-gate.mjs --phase post"
+        "matcher": "read_file|view_file|.*read.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./hooks/evidence-before-pass-gate.mjs --phase post"
+          }
+        ]
       }
     ],
     "Stop": [
       {
+        "type": "command",
         "command": "node ./hooks/speak-before-act-hook.mjs --phase stop"
       }
     ]

@@ -266,6 +266,167 @@ try {
     assert.match(readFileSync(join(sandbox, '.wr-hook-observe.jsonl'), 'utf8'), /copy-and-privacy-lint/);
   });
 
+  // 5. Antigravity (AGY) 协议标准输出与 hooks.agy.json 结构校验
+  test('agy: safety-redline-guard 放行与 observe 均输出 decision=allow JSON', () => {
+    const rAllow = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
+      hookEventName: 'PreToolUse',
+      conversationId: 'conv-agy-1',
+      toolCall: { name: 'read_file', args: { Path: safeEnv } },
+      cwd: sandbox
+    });
+    assert.equal(rAllow.status, 0);
+    assert.deepEqual(JSON.parse(rAllow.stdout.trim()), { decision: 'allow' });
+
+    const rObs = runNode('safety-redline-guard.mjs', ['--mode', 'observe'], {
+      hookEventName: 'PreToolUse',
+      conversationId: 'conv-agy-1',
+      toolCall: { name: 'read_file', args: { Path: fakeSsh } },
+      cwd: sandbox
+    });
+    assert.equal(rObs.status, 0);
+    assert.deepEqual(JSON.parse(rObs.stdout.trim()), { decision: 'allow' });
+  });
+
+  test('agy: evidence-before-pass-gate PostToolUse 固定输出 {}，PreToolUse 放行输出 decision=allow', () => {
+    const convId = 'conv-agy-ev-' + Date.now();
+    const doc = {
+      coverageGate: { unmappedFiles: [], zeroRunSuites: [] },
+      items: [{ id: 'qa-agy-1', passes: true, evidence: 'qa-log.txt' }]
+    };
+
+    const rDeny = runNode('evidence-before-pass-gate.mjs', ['--phase', 'pre', '--mode', 'enforce'], {
+      hookEventName: 'PreToolUse',
+      conversationId: convId,
+      toolCall: { name: 'write_file', args: { Path: 'acceptance.json', Content: JSON.stringify(doc) } },
+      cwd: sandbox
+    });
+    assert.equal(rDeny.status, 0);
+    const denyJson = JSON.parse(rDeny.stdout.trim());
+    assert.equal(denyJson.decision, 'deny');
+    assert.match(denyJson.reason, /尚未亲眼读取/);
+
+    const rPostRead = runNode('evidence-before-pass-gate.mjs', ['--phase', 'post'], {
+      hookEventName: 'PostToolUse',
+      conversationId: convId,
+      toolCall: { name: 'read_file', args: { Path: 'qa-log.txt' } },
+      cwd: sandbox
+    });
+    assert.equal(rPostRead.status, 0);
+    assert.deepEqual(JSON.parse(rPostRead.stdout.trim()), {});
+
+    const rPostOther = runNode('evidence-before-pass-gate.mjs', ['--phase', 'post'], {
+      hookEventName: 'PostToolUse',
+      conversationId: convId,
+      toolCall: { name: 'run_command', args: { CommandLine: 'echo ok' } },
+      cwd: sandbox
+    });
+    assert.equal(rPostOther.status, 0);
+    assert.deepEqual(JSON.parse(rPostOther.stdout.trim()), {});
+
+    const rAllow = runNode('evidence-before-pass-gate.mjs', ['--phase', 'pre', '--mode', 'enforce'], {
+      hookEventName: 'PreToolUse',
+      conversationId: convId,
+      toolCall: { name: 'write_file', args: { Path: 'acceptance.json', Content: JSON.stringify(doc) } },
+      cwd: sandbox
+    });
+    assert.equal(rAllow.status, 0);
+    assert.deepEqual(JSON.parse(rAllow.stdout.trim()), { decision: 'allow' });
+
+    const rObs = runNode('evidence-before-pass-gate.mjs', ['--phase', 'pre', '--mode', 'observe'], {
+      hookEventName: 'PreToolUse',
+      conversationId: convId,
+      toolCall: {
+        name: 'write_file',
+        args: {
+          Path: 'acceptance.json',
+          Content: JSON.stringify({
+            coverageGate: { unmappedFiles: ['src/x.js'], zeroRunSuites: [] },
+            items: [{ id: 'qa-agy-2', passes: true, evidence: 'qa-log.txt' }]
+          })
+        }
+      },
+      cwd: sandbox
+    });
+    assert.equal(rObs.status, 0);
+    assert.deepEqual(JSON.parse(rObs.stdout.trim()), { decision: 'allow' });
+  });
+
+  test('agy: speak-before-act-hook PreToolUse 放行输出 decision=allow，Stop 阶段观察留痕且返回 {} 不返回 deny', () => {
+    const convSpeak = 'conv-agy-speak-' + Date.now();
+    const rPreAllow = runNode('speak-before-act-hook.mjs', ['--phase', 'pre', '--mode', 'enforce'], {
+      hookEventName: 'PreToolUse',
+      conversationId: convSpeak,
+      toolCall: { name: 'read_file', args: { Path: 'qa-log.txt' } },
+      transcript: [
+        { role: 'user', content: '查日志' },
+        { role: 'assistant', content: '收到，我先读取日志确认。' }
+      ],
+      cwd: sandbox
+    });
+    assert.equal(rPreAllow.status, 0);
+    assert.deepEqual(JSON.parse(rPreAllow.stdout.trim()), { decision: 'allow' });
+
+    const rPreDeny = runNode('speak-before-act-hook.mjs', ['--phase', 'pre', '--mode', 'enforce'], {
+      hookEventName: 'PreToolUse',
+      conversationId: convSpeak,
+      turnId: 'turn-agy-2',
+      toolCall: { name: 'read_file', args: { Path: 'qa-log.txt' } },
+      transcript: [{ role: 'user', content: '再看一遍' }],
+      cwd: sandbox
+    });
+    assert.equal(rPreDeny.status, 0);
+    assert.equal(JSON.parse(rPreDeny.stdout.trim()).decision, 'deny');
+
+    const rPreSecond = runNode('speak-before-act-hook.mjs', ['--phase', 'pre', '--mode', 'enforce'], {
+      hookEventName: 'PreToolUse',
+      conversationId: convSpeak,
+      turnId: 'turn-agy-2',
+      toolCall: { name: 'read_file', args: { Path: 'qa-log.txt' } },
+      transcript: [{ role: 'user', content: '再看一遍' }],
+      cwd: sandbox
+    });
+    assert.equal(rPreSecond.status, 0);
+    assert.deepEqual(JSON.parse(rPreSecond.stdout.trim()), { decision: 'allow' });
+
+    const rStopClean = runNode('speak-before-act-hook.mjs', ['--phase', 'stop', '--mode', 'enforce'], {
+      hookEventName: 'Stop',
+      conversationId: convSpeak,
+      response: '已经检查完日志，测试全部通过。',
+      cwd: sandbox
+    });
+    assert.equal(rStopClean.status, 0);
+    assert.deepEqual(JSON.parse(rStopClean.stdout.trim()), {});
+
+    const rStopBad = runNode('speak-before-act-hook.mjs', ['--phase', 'stop', '--mode', 'enforce'], {
+      hookEventName: 'Stop',
+      conversationId: convSpeak,
+      response: '已定位提交 1234567890abcdef1234567890abcdef12345678 的问题。',
+      cwd: sandbox
+    });
+    assert.equal(rStopBad.status, 0);
+    assert.deepEqual(JSON.parse(rStopBad.stdout.trim()), {});
+    assert.match(readFileSync(join(sandbox, '.wr-hook-observe.jsonl'), 'utf8'), /裸露 40 位完整提交哈希/);
+  });
+
+  test('agy: examples/hooks.agy.json 符合反重力顶层具名组与 matcher+hooks 规范', () => {
+    const agyCfgPath = join(HOOKS_DIR, '..', 'examples', 'hooks.agy.json');
+    if (!existsSync(agyCfgPath)) return;
+    const cfg = JSON.parse(readFileSync(agyCfgPath, 'utf8'));
+    assert.equal('hooks' in cfg, false);
+    const groupNames = Object.keys(cfg);
+    assert.ok(groupNames.length >= 1);
+    const g = cfg[groupNames[0]];
+    assert.ok(Array.isArray(g.PreToolUse) && g.PreToolUse.length >= 1);
+    assert.equal(typeof g.PreToolUse[0].matcher, 'string');
+    assert.ok(Array.isArray(g.PreToolUse[0].hooks) && g.PreToolUse[0].hooks.length >= 1);
+    assert.ok(Array.isArray(g.PostToolUse) && g.PostToolUse.length >= 1);
+    assert.equal(typeof g.PostToolUse[0].matcher, 'string');
+    assert.ok(Array.isArray(g.PostToolUse[0].hooks) && g.PostToolUse[0].hooks.length >= 1);
+    assert.ok(Array.isArray(g.Stop) && g.Stop.length >= 1);
+    assert.equal(typeof g.Stop[0].command, 'string');
+    assert.equal('matcher' in g.Stop[0], false);
+  });
+
   console.log(`\n全部 ${passed} 项钩子自测通过。`);
 } finally {
   rmSync(sandbox, { recursive: true, force: true });
