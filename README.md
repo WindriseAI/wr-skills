@@ -11,9 +11,9 @@
 
 **支持 Claude Code、Codex、Cursor、Antigravity、claude.ai，以及其他支持 Skills 的 Agent。** 每个 Skill 都附一份独立提示词清单，用的 AI 不支持 Skill 也能直接复制。
 
-[四大核心主推技能](#四大核心主推技能) · [Skills 一览](#skills-一览) · [通用钩子脚本](#通用钩子脚本) · [安装](#安装) · [仓库结构](#仓库结构) · [授权](#授权) · [更新记录](https://github.com/WindriseAI/wr-skills/commits/main)
+[四个核心推荐技能](#四个核心推荐技能) · [Skills 一览](#skills-一览) · [通用钩子脚本](#通用钩子脚本) · [安装](#安装) · [仓库结构](#仓库结构) · [授权](#授权) · [更新记录](https://github.com/WindriseAI/wr-skills/commits/main)
 
-## 四大核心主推技能
+## 四个核心推荐技能
 
 这 4 个技能是整套工程做法的骨架，建议新项目或重要任务优先装上。
 
@@ -24,7 +24,7 @@
 | [wr-axiomatic-design](docs/wr-axiomatic-design/README.md) | **提取功能需求做下三角解耦**。列出互不重叠的功能需求与设计参数并画出依赖矩阵，通过重排顺序和抽取唯一真源消掉反向耦合，确认呈下三角阵后再并行开发 | [说明](docs/wr-axiomatic-design/README.md) | [复制用](docs/wr-axiomatic-design/提示词清单.md) |
 | [wr-skeptic-audit](docs/wr-skeptic-audit/README.md) | **三席物理隔离独立盲审**。合并后开三个全新只读会话，分别由禁读源码的用户查交互、禁读源码的读者查文案，再由全新老兵工程师按八项清单审 diff | [说明](docs/wr-skeptic-audit/README.md) | [复制用](docs/wr-skeptic-audit/提示词清单.md) |
 
-一行命令装齐四大核心主推技能。
+一行命令装齐四个核心推荐技能。
 
 ```bash
 npx -y skills add WindriseAI/wr-skills -g --skill wr-10x-goal wr-ask-first wr-axiomatic-design wr-skeptic-audit

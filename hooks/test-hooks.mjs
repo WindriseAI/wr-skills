@@ -427,6 +427,125 @@ try {
     assert.equal('matcher' in g.Stop[0], false);
   });
 
+  test('safety-redline-guard: 拦截 orca 单引号夹带双引号或超长内联参数，放行 -file 与短文本', () => {
+    const rQuote = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
+      tool_name: 'Bash',
+      tool_input: { command: `orca orchestration send --type note --body 'check "assets/a.svg" now'` },
+      cwd: sandbox
+    });
+    assert.equal(rQuote.status, 2);
+    assert.match(rQuote.stderr, /--body-file/);
+
+    const longText = '测试正文'.repeat(35);
+    const rLong = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
+      tool_name: 'Bash',
+      tool_input: { command: `orca orchestration worker-start --spec "${longText}"` },
+      cwd: sandbox
+    });
+    assert.equal(rLong.status, 2);
+    assert.match(rLong.stderr, /--spec-file/);
+
+    const rFile = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
+      tool_name: 'Bash',
+      tool_input: { command: 'orca orchestration send --type worker_done --body-file msg.txt' },
+      cwd: sandbox
+    });
+    assert.equal(rFile.status, 0);
+
+    const rShort = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
+      tool_name: 'Bash',
+      tool_input: { command: `orca orchestration send --type note --body 'short clean note'` },
+      cwd: sandbox
+    });
+    assert.equal(rShort.status, 0);
+  });
+
+  test('safety-redline-guard: 拦截远端测试机裸临时目录，放行带席位后缀或二级子目录', () => {
+    const winBare = ['C', ':\\tmp\\my-site-v7'].join('');
+    const rBareWin = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
+      tool_name: 'Bash',
+      tool_input: { command: `ssh testpc "mkdir ${winBare}"` },
+      cwd: sandbox
+    });
+    assert.equal(rBareWin.status, 2);
+    assert.match(rBareWin.stderr, /防碰撞/);
+
+    const rBareScp = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
+      tool_name: 'Bash',
+      tool_input: { command: 'scp bundle.tgz testpc:/tmp/my-site-v7' },
+      cwd: sandbox
+    });
+    assert.equal(rBareScp.status, 2);
+
+    const rSuffixed = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
+      tool_name: 'Bash',
+      tool_input: { command: 'scp bundle.tgz testpc:/tmp/my-site-v7-seat1-20261126/' },
+      cwd: sandbox
+    });
+    assert.equal(rSuffixed.status, 0);
+
+    const rNested = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
+      tool_name: 'Bash',
+      tool_input: { command: 'ssh testpc "mkdir -p /tmp/my-site-v7/seat2"' },
+      cwd: sandbox
+    });
+    assert.equal(rNested.status, 0);
+  });
+
+  test('agy: safety-redline-guard 双协议拦截 orca 长参数与远端裸目录，observe 模式放行留痕', () => {
+    const rDeny = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
+      hookEventName: 'PreToolUse',
+      conversationId: 'conv-agy-orca-1',
+      toolCall: {
+        name: 'run_command',
+        args: { CommandLine: `orca bot reply --text 'hello "world"'` }
+      },
+      cwd: sandbox
+    });
+    assert.equal(rDeny.status, 0);
+    const out = JSON.parse(rDeny.stdout.trim());
+    assert.equal(out.decision, 'deny');
+    assert.match(out.reason, /--text-file/);
+
+    const rObs = runNode('safety-redline-guard.mjs', ['--mode', 'observe'], {
+      hookEventName: 'PreToolUse',
+      conversationId: 'conv-agy-orca-1',
+      toolCall: {
+        name: 'run_command',
+        args: { CommandLine: 'ssh testpc "mkdir /tmp/shared-proj"' }
+      },
+      cwd: sandbox
+    });
+    assert.equal(rObs.status, 0);
+    assert.deepEqual(JSON.parse(rObs.stdout.trim()), { decision: 'allow' });
+    assert.match(readFileSync(join(sandbox, '.wr-hook-observe.jsonl'), 'utf8'), /防碰撞/);
+  });
+
+  test('copy-and-privacy-lint: 拦截 AI 塑料黑话与推销词（漏勺/焊死/主推技能/九件套）', () => {
+    const slangDoc = join(sandbox, 'slang.md');
+    const badText = [
+      `抓出五处${['漏', '勺'].join('')}`,
+      `把流程${['焊', '死'].join('')}在一起`,
+      `四个核心${['主', '推', '技', '能'].join('')}`,
+      `推荐整套${['九', '件', '套'].join('')}`
+    ].join('\n');
+    writeFileSync(slangDoc, badText, 'utf8');
+    const rBad = runNode('copy-and-privacy-lint.mjs', ['--cwd', sandbox, 'slang.md']);
+    assert.equal(rBad.status, 1);
+    assert.match(rBad.stdout, /命中 4 处/);
+  });
+
+  test('copy-and-privacy-lint: 钩子脚本自身通过文风与隐私扫描（0 命中）', () => {
+    const rSelf = runNode('copy-and-privacy-lint.mjs', [
+      '--cwd',
+      HOOKS_DIR,
+      'safety-redline-guard.mjs',
+      'copy-and-privacy-lint.mjs'
+    ]);
+    assert.equal(rSelf.status, 0);
+    assert.match(rSelf.stdout, /命中 0 处/);
+  });
+
   console.log(`\n全部 ${passed} 项钩子自测通过。`);
 } finally {
   rmSync(sandbox, { recursive: true, force: true });

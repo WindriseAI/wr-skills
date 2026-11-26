@@ -27,10 +27,10 @@
 
 仓库根目录 [hooks/](../../hooks/) 已提供 4 个纯 Node.js 标准库零依赖脚本与全量自测（`node hooks/test-hooks.mjs`），配套配置模板位于 [examples/](../../examples/)，一共下面这 4 个脚本。
 
-- `hooks/safety-redline-guard.mjs`
+- `hooks/safety-redline-guard.mjs`，涵盖安全四红线、PowerShell `orca` 长参数改 `-file` 防引号劈裂与远端裸临时目录防并发碰撞。
 - `hooks/evidence-before-pass-gate.mjs`
 - `hooks/speak-before-act-hook.mjs`
-- `hooks/copy-and-privacy-lint.mjs`
+- `hooks/copy-and-privacy-lint.mjs`，涵盖破折号、翻案句、商业与 AI 塑料黑话及本机隐私路径动态扫描。
 
 ## 安装
 

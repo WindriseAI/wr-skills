@@ -31,7 +31,7 @@ description: 高频踩坑写成确定性拦截钩子。把零例外的客观硬�
 
 ## 第二步 双宿主协议输入输出规范
 
-同一份 Node.js 钩子脚本按 Claude Code 与 Antigravity 两种钩子输入输出格式编写，在入口统一解析 `stdin` 后按各自协议输出（仓内已通过 17 项双协议离线单测验证，挂载前先按宿主环境实跑确认）。
+同一份 Node.js 钩子脚本按 Claude Code 与 Antigravity 两种钩子输入输出格式编写，在入口统一解析 `stdin` 后按各自协议输出（仓内已通过 22 项双协议离线单测验证，挂载前先按宿主环境实跑确认）。
 - **Claude Code 格式**，输入含 `{ tool_name, tool_input, session_id, transcript_path }`。放行时直接以 `process.exit(0)` 退出；硬拦时将原因写到 `stderr` 并以 `process.exit(2)` 退出。
 - **Antigravity 格式**，输入含 `{ toolCall: { name, args }, conversationId, hookEventName, transcriptPath }`（或同义字段）。`PreToolUse` 放行时向 `stdout` 输出 `{"decision":"allow"}`，硬拦时输出 `{"decision":"deny","reason":"..."}`；`PostToolUse` 固定输出 `{}`；`Stop` 阶段只记录观察日志并输出 `{}`，均以 `process.exit(0)` 退出。
 
@@ -44,10 +44,10 @@ description: 高频踩坑写成确定性拦截钩子。把零例外的客观硬�
 
 ## 现成参考实现
 
-本仓库 `hooks/` 目录自带 4 个可直接复制使用的零依赖通用钩子（按 Claude Code 与 Antigravity 协议编写并支持 Git `pre-commit`，随仓附带 `node hooks/test-hooks.mjs` 的 17 项双协议离线单测）。
-- `hooks/safety-redline-guard.mjs`，安全四红线守卫（凭据、删除、主分支重置、主力机静音）。
+本仓库 `hooks/` 目录自带 4 个可直接复制使用的零依赖通用钩子（按 Claude Code 与 Antigravity 协议编写并支持 Git `pre-commit`，随仓附带 `node hooks/test-hooks.mjs` 的 22 项双协议离线单测）。
+- `hooks/safety-redline-guard.mjs`，安全四红线守卫（凭据、删除、主分支重置、主力机静音），外加 Windows PowerShell `orca` 长参数改 `-file` 防引号劈裂拦截与远端测试机裸临时目录防并发覆盖拦截。
 - `hooks/evidence-before-pass-gate.mjs`，实证门禁（未读证据、未覆盖或零条测试禁标 `passes: true`）。
 - `hooks/speak-before-act-hook.mjs`，先应声再动手与收尾人话检查。
-- `hooks/copy-and-privacy-lint.mjs`，提交前中文文风与本机隐私路径动态扫描。
+- `hooks/copy-and-privacy-lint.mjs`，提交前中文文风、AI 塑料黑话与本机隐私路径动态扫描。
 
 配套挂载模板见 `examples/hooks.claude.json`、`examples/hooks.agy.json` 与 `examples/wr.config.example.json`。

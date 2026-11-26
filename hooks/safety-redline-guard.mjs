@@ -139,6 +139,50 @@ function isWorktreeCheckout(cwd) {
   }
 }
 
+function checkOrcaQuoteSplit(cmd) {
+  const subs = String(cmd || '').split(/&&|\|\||[;\r\n]/);
+  const orcaTargetRe = /^(?:&\s*)?["']?(?:[^"'\s]*[/\\])?orca(?:\.exe|\.cmd)?["']?\s+(?:orchestration\s+(?:send|worker-start)|bot\s+(?:reply|item))\b/i;
+  const flagRe = new RegExp('-'.repeat(2) + `(body|spec|comment|text)(?!-file)(?:=|\\s+)(?:'([^']*)'|"([^"]*)"|(\\S+))`, 'gi');
+  for (const rawSub of subs) {
+    const sub = rawSub.trim();
+    if (!sub || !orcaTargetRe.test(sub)) continue;
+    flagRe.lastIndex = 0;
+    let m;
+    while ((m = flagRe.exec(sub)) !== null) {
+      const flag = m[1].toLowerCase();
+      const singleQuoted = m[2] !== undefined;
+      const val = m[2] ?? m[3] ?? m[4] ?? '';
+      if (singleQuoted && val.includes('"')) {
+        return `红线拦截（引号防劈裂）：orca 的 --${flag} 单引号参数内含英文双引号，在 Windows PowerShell 下易被劈裂成 Unknown command。请先写入文本文件，改用 --${flag}-file <文件路径> 传入。`;
+      }
+      if (val.length > 120) {
+        return `红线拦截（引号防劈裂）：orca 的 --${flag} 内联参数长达 ${val.length} 字（超过 120 字），易触发命令行截断或引号出错。请先写入文本文件，改用 --${flag}-file <文件路径> 传入。`;
+      }
+    }
+  }
+  return null;
+}
+
+const REMOTE_TMP_DIR_RE = /(?:[A-Za-z]:[/\\]|(?:^|[\s:"'=/]))tmp[/\\]([A-Za-z0-9._-]+)([/\\][A-Za-z0-9._-]+)?/gi;
+const UNIQUE_TMP_SUFFIX_RE = /(?:[-_](?:seat\d*|task[-_a-z0-9]*|run[-_a-z0-9]*|wt[-_a-z0-9]*|branch[-_a-z0-9]*|worker[-_a-z0-9]*|r\d+|\d{4,}|[0-9a-f]{6,}))$/i;
+const SIMPLE_FILE_EXT_RE = /\.(?:tar\.gz|tgz|zip|7z|log|txt|json|jsonl|md|mjs|cjs|js|py|ps1|sh|png|jpg|webp|html)$/i;
+
+function checkRemoteBareTempDir(cmd) {
+  if (!/\b(?:ssh|scp)(?:\.exe)?\b/i.test(cmd)) return null;
+  REMOTE_TMP_DIR_RE.lastIndex = 0;
+  let m;
+  while ((m = REMOTE_TMP_DIR_RE.exec(cmd)) !== null) {
+    const seg = m[1] || '';
+    const nested = m[2] || '';
+    if (!seg || nested) continue;
+    if (seg.includes('$') || seg.includes('%')) continue;
+    if (SIMPLE_FILE_EXT_RE.test(seg)) continue;
+    if (UNIQUE_TMP_SUFFIX_RE.test(seg)) continue;
+    return `红线拦截（远端临时目录防碰撞）：远端命令指向无唯一后缀的共享裸目录 "tmp/${seg}"，多帮手并发容易互相覆盖。请追加席位、任务或时间戳后缀（例如 /tmp/${seg}-seat1-20261126）或改用任务专属二级子目录。`;
+  }
+  return null;
+}
+
 function checkViolation(paths, commands, cwd, config) {
   const extraPatterns = (config.safetyGuard && config.safetyGuard.extraProtectedPatterns) || [];
   const allowedDirs = (config.safetyGuard && config.safetyGuard.allowedDeleteDirs) || [
@@ -191,6 +235,14 @@ function checkViolation(paths, commands, cwd, config) {
         return '红线拦截（主力机静音保护）：主力机禁止直接跑重型全量浏览器测试，请派往独立测试环境，或在确认后携带环境变量 WR_TEST_RUNNER=1 执行。';
       }
     }
+
+    // 规则 5：Windows PowerShell / orca 原生 CLI 长参数与单引号含双引号防劈裂
+    const quoteHit = checkOrcaQuoteSplit(cmd);
+    if (quoteHit) return quoteHit;
+
+    // 规则 6：远端测试机共享裸临时目录防并发碰撞
+    const remoteTmpHit = checkRemoteBareTempDir(cmd);
+    if (remoteTmpHit) return remoteTmpHit;
   }
   return null;
 }
