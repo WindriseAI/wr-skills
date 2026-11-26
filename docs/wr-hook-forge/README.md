@@ -2,7 +2,7 @@
 
 [← 返回 wr-skills](../../README.md) · [English](../../README.en.md#skills)
 
-> 同坑二次写进钩子。把零例外的客观硬规矩从文档抽出来，固化成毫秒级、零依赖的静态脚本或 Agent 钩子；新钩子先挂 `observe` 观察档跑顺确认零误报，再切 `enforce` 硬拦。
+> 高频踩坑写成确定性拦截钩子。把零例外的客观硬规矩从文档抽出来，写成毫秒级、零依赖的 Node.js 检查脚本或 Agent 钩子，先挂 `observe` 观察档确认零误报再切 `enforce` 硬拦。
 
 **支持 Claude Code、Codex、Cursor、Antigravity、Git Hooks，以及其他支持 Skills 的 Agent。** 用的 AI 不支持 Skill，也可以直接复制 [提示词清单](提示词清单.md)。
 

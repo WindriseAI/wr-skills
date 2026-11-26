@@ -2,7 +2,7 @@
 
 [← 返回 wr-skills](../../README.md) · [English](../../README.en.md#wr-geo)
 
-> 让搜索引擎和 AI 助手读得到、说得对你的网站。先实测线上，再写契约，改完由另一份独立检查验收。
+> 官网上线前后的搜索引擎与 AI 收录体检，先实测线上内容与爬虫状态，再写逐字契约并由独立检查脚本验收。
 
 **支持 Claude Code、Codex、claude.ai，以及其他支持 Skills 的 Agent。** 用的 AI 不支持 Skill，也可以直接复制 [提示词清单](提示词清单.md)。
 

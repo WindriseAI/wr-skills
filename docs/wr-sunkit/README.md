@@ -2,7 +2,7 @@
 
 [← 返回 wr-skills](../../README.md) · [English](../../README.en.md#wr-sunkit)
 
-> 把 AI 当成你的营养师、军师和反对者。拍照算热量、三家 AI 出上中下策、让 AI 专门反对你，三件事装进一个 Skill。
+> 拍照算饮食热量、三家 AI 出方案对比、让 AI 专门挑刺反对你。
 
 **支持 Claude Code、Codex、claude.ai，以及其他支持 Skills 的 Agent。** 用的 AI 不支持 Skill，也可以直接复制 [提示词清单](提示词清单.md)。
 

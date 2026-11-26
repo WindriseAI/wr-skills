@@ -2,7 +2,7 @@
 
 [← 返回 wr-skills](../../README.md) · [English](../../README.en.md#skills)
 
-> 多代理分桌并行。总协调人只拆活审回执不写代码，一活一棵独立 `git worktree` 切死独占文件白名单，四档难度按需派活，砍废包减重与多路并发提速，附通用 Git 与 Orca 双路实操。
+> 多工作树无重叠并行派活。总协调人只拆活审回执不写代码，一活一棵独立 `git worktree` 切死独占文件白名单，先砍废包瘦身再按四档难度多路并行，附通用 Git 与 Orca 双路实操。
 
 **支持 Claude Code、Codex、Cursor、Antigravity、Orca，以及其他支持 Skills 的 Agent。** 用的 AI 不支持 Skill，也可以直接复制 [提示词清单](提示词清单.md)。
 

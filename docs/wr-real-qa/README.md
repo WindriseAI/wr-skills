@@ -2,7 +2,7 @@
 
 [← 返回 wr-skills](../../README.md) · [English](../../README.en.md#skills)
 
-> 真路径验收与破测试排雷。跑前做改动文件到测试的覆盖映射（硬禁 `UNMAPPED` 与 `ZERO_RUN`），用破测试突变探针抓假绿水测试，用 `getBoundingClientRect` 扫像素裁切与遮挡，连败两次立即熔断查根因。
+> 改动全覆盖真路径验收。跑前做改动文件到行为测试的覆盖映射（硬禁 `UNMAPPED` 与 `ZERO_RUN`），用反向改写业务的突变探针抓假绿水测试，用 `getBoundingClientRect` 扫像素裁切与遮挡，连败两次立即熔断查根因。
 
 **支持 Claude Code、Codex、Cursor、Antigravity、claude.ai，以及其他支持 Skills 的 Agent。** 用的 AI 不支持 Skill，也可以直接复制 [提示词清单](提示词清单.md)。
 

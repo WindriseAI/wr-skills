@@ -2,7 +2,7 @@
 
 [← 返回 wr-skills](../../README.md) · [English](../../README.en.md#skills)
 
-> 先质疑挑坑，再问透立据。动手前搜齐 10 个现成开源方案，先挑出需求里的泄密、上下文爆炸、自相矛盾与二三阶隐患，再用决策树分轮追问落盘 `docs/SPEC.md`。
+> 动手前先挑刺并问清需求。动工前先搜齐十个现成开源方案对比体积与协议，当面指出泄密、上下文膨胀、需求自相矛盾与二三阶隐患，再用决策树分轮追问并写入 `docs/SPEC.md`。
 
 **支持 Claude Code、Codex、Cursor、Antigravity、claude.ai，以及其他支持 Skills 的 Agent。** 用的 AI 不支持 Skill，也可以直接复制 [提示词清单](提示词清单.md)。
 
