@@ -4,7 +4,8 @@
 
 > A collection of Chinese-language AI Skills and deterministic engineering hooks by Windrise AI. Battle-tested habits for daily thinking and shipping software with AI, packaged to install individually or as a full suite.
 
-[![License: CC BY-NC 4.0](https://img.shields.io/badge/license-CC%20BY--NC%204.0-16A34A.svg?style=flat-square)](LICENSE)
+[![Docs: CC BY-NC 4.0](https://img.shields.io/badge/docs-CC%20BY--NC%204.0-16A34A.svg?style=flat-square)](LICENSE)
+[![Code: MIT](https://img.shields.io/badge/code-MIT-16A34A.svg?style=flat-square)](LICENSE-MIT)
 [![Skills](https://img.shields.io/badge/skills-10-2563EB.svg?style=flat-square)](#skills)
 [![Hooks](https://img.shields.io/badge/hooks-4-0F766E.svg?style=flat-square)](#universal-hooks)
 
@@ -129,8 +130,11 @@ Restricted network: download the ZIP (or clone from a mirror) on a machine with 
 
 ## License
 
-[CC BY-NC 4.0](LICENSE). Adapt and share with attribution to Windrise AI and a link to this repo.
+The repository contains two kinds of material under different licenses.
 
-**Additional permission from the author** (granted by the copyright holder on top of CC BY-NC 4.0): individuals and teams using these Skills, prompts and hooks in their own work, including at a company to build its own software, is not considered commercial use and is free.
+**Code is MIT: use it freely, including commercially.** This covers every executable script: the hooks and their tests under `hooks/`, the check scripts under `skills/*/scripts/`, and the image scripts under `docs/*/src/`. Each file starts with `SPDX-License-Identifier: MIT`; full text in [LICENSE-MIT](LICENSE-MIT). Keep the copyright notice and you may modify it, merge it into your own projects or ship it in paid products.
 
-**Still not allowed**: selling the content itself, for example reselling it or bundling it into paid courses, bootcamps, paid communities, paid resource packs, paid consulting deliverables or paid products. If you are unsure whether your use counts as commercial, or need a commercial license, open an [issue](https://github.com/WindriseAI/wr-skills/issues).
+**Docs and Skill content are CC BY-NC 4.0 plus an additional permission.** This covers the Skills (`SKILL.md`), prompt checklists, README and other documentation, and images, licensed under [CC BY-NC 4.0](LICENSE). Adapt and share with attribution to Windrise AI and a link to this repo.
+
+- **Additional permission from the author** (granted by the copyright holder on top of CC BY-NC 4.0): individuals and teams using these Skills and prompts in their own work, including at a company to build its own software, is not considered commercial use and is free.
+- **Still not allowed**: selling the content itself, for example reselling it or bundling it into paid courses, bootcamps, paid communities, paid resource packs, paid consulting deliverables or paid products. If you are unsure whether your use counts as commercial, or need a commercial license, open an [issue](https://github.com/WindriseAI/wr-skills/issues).

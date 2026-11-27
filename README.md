@@ -4,7 +4,8 @@
 
 > Windrise AI 的中文 AI Skills 合集与软件工程实战体系。把日常和做软件时验证过的好习惯做成独立 Skill 和零依赖钩子脚本，装上就能用。
 
-[![License: CC BY-NC 4.0](https://img.shields.io/badge/license-CC%20BY--NC%204.0-16A34A.svg?style=flat-square)](LICENSE)
+[![Docs: CC BY-NC 4.0](https://img.shields.io/badge/docs-CC%20BY--NC%204.0-16A34A.svg?style=flat-square)](LICENSE)
+[![Code: MIT](https://img.shields.io/badge/code-MIT-16A34A.svg?style=flat-square)](LICENSE-MIT)
 [![Skills](https://img.shields.io/badge/skills-10-2563EB.svg?style=flat-square)](#skills-一览)
 [![Hooks](https://img.shields.io/badge/hooks-4-0F766E.svg?style=flat-square)](#通用钩子脚本)
 [![中文](https://img.shields.io/badge/语言-中文-B4532A.svg?style=flat-square)](#)
@@ -223,16 +224,20 @@ wr-skills/
 ├── hooks/                   # 4 个零依赖通用 Node.js 钩子脚本与自测脚本
 ├── examples/                # 配置模板与字段说明、首次对齐原文、AGENTS 模板、钩子挂载与权限拒绝表示例
 ├── .claude-plugin/          # Claude Code 插件市场配置
-└── LICENSE
+├── LICENSE                  # 文档与技能内容：CC BY-NC 4.0
+└── LICENSE-MIT              # 代码：MIT
 ```
 
 ## 授权
 
-本仓库所有内容（Skill、提示词、钩子脚本、文档、配图）采用 [CC BY-NC 4.0](LICENSE)（署名-非商业性使用 4.0 国际）授权，转载、修改、分享时注明作者 Windrise AI 和本仓库链接。
+仓库里分两种东西，授权不一样。
 
-**作者额外授权**（版权人在 CC BY-NC 4.0 之外另行给出的许可，与 LICENSE 一起生效）：个人和团队在自己的工作中使用这些技能、提示词和钩子（包括在公司里用来开发自己的软件），不算商业用途，可以免费用。
+**代码是 MIT，可以随便用，包括商用。** 指所有可执行脚本：`hooks/` 下的钩子和自测、`skills/*/scripts/` 下的检查脚本、`docs/*/src/` 下的出图脚本，每个文件开头都标了 `SPDX-License-Identifier: MIT`，全文见 [LICENSE-MIT](LICENSE-MIT)。拿去改、合进自己的项目、放进收费产品都行，保留版权声明即可。
 
-**仍然不可以**：把这些内容本身拿去卖或换钱，例如转售、放进付费课程、训练营、付费社群、付费资料包、付费咨询交付物，或者打包进收费产品当卖点或会员赠品。
+**文档和技能内容是 CC BY-NC 4.0 加作者额外授权。** 指 Skill（`SKILL.md`）、提示词清单、README 等说明文档和配图，按 [CC BY-NC 4.0](LICENSE)（署名-非商业性使用 4.0 国际）授权，转载、修改、分享时注明作者 Windrise AI 和本仓库链接。
+
+- **作者额外授权**（版权人在 CC BY-NC 4.0 之外另行给出的许可，与 LICENSE 一起生效）：个人和团队在自己的工作中使用这些技能和提示词（包括在公司里用来开发自己的软件），不算商业用途，可以免费用。
+- **仍然不可以**：把这些内容本身拿去卖或换钱，例如转售、放进付费课程、训练营、付费社群、付费资料包、付费咨询交付物，或者打包进收费产品当卖点或会员赠品。
 
 拿不准算不算商用，或者需要商业授权，请通过 [Issue](https://github.com/WindriseAI/wr-skills/issues) 联系。
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: MIT
 // 提交前隐私路径与密钥扫描（Git pre-commit / CI / CLI）
 // 纯 Node.js 标准库零依赖，运行时动态读取当前机器用户名与家目录，防止私密路径和密钥外泄。
 // 只内置隐私与密钥两类检查；不带任何文风词表。项目自己的禁用词和旧名替换写在 wr.config.json 的 copyLint 里。

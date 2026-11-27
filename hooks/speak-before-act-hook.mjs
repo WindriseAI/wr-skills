@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: MIT
 // 先应声再动手与收尾自定义检查（PreToolUse + Stop）
 // 纯 Node.js 标准库零依赖，解析异常一律 fail-open 放行绝不卡死会话；支持 observe / enforce 双模式。
 // 会话记录同时兼容两种格式：顶层 role/content（Antigravity 等），以及 Claude Code 的 type + message.role/message.content。

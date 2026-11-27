@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: MIT
 // wr-geo 渲染脚本：用本机已装的无头浏览器（Edge / Chrome / Chromium）打开网址，
 // 截一张图，取「不跑 JS 的原始 HTML 里的可见文字」和「浏览器跑完 JS 后的可见文字」，
 // 并报横向溢出像素。用来判断不跑 JS 的爬虫能看到什么。

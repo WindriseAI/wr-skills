@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: MIT
 // 实证门禁钩子（PostToolUse 记录已读证据 + PreToolUse 校验未读/未覆盖/零用例禁标 passes: true）
 // 纯 Node.js 标准库零依赖，兼容 Claude Code 与 Antigravity，支持 observe / enforce 双模式。
 import { existsSync, readFileSync, appendFileSync, mkdirSync } from 'node:fs';

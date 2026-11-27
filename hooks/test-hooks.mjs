@@ -1,7 +1,8 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: MIT
 // 4 个通用钩子脚本的全量自动化单测（正常放行、危险拦截、双协议、observe/enforce 切换、首次对齐与配置查找）
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawnSync, execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -863,6 +864,23 @@ try {
     for (const t of ['## 轻量档', '## 标准档', '## 完整档']) assert.ok(agents.includes(t), t);
     JSON.parse(read('skills/wr-geo/references/config-example-zh.json'));
     JSON.parse(read('examples/claude-permissions.example.json'));
+  });
+
+  test('授权：所有脚本标了 SPDX MIT，LICENSE-MIT 在，README 写清代码 MIT、文档 CC BY-NC', () => {
+    const files = execFileSync('git', ['ls-files'], { cwd: REPO_DIR, encoding: 'utf8' })
+      .split(/\r?\n/)
+      .filter((p) => /\.(?:mjs|cjs|js|py|sh)$/.test(p));
+    assert.ok(files.length >= 7);
+    for (const p of files) {
+      const head = readFileSync(join(REPO_DIR, p), 'utf8').split(/\r?\n/).slice(0, 3).join('\n');
+      assert.match(head, /SPDX-License-Identifier: MIT/, p);
+    }
+    assert.match(readFileSync(join(REPO_DIR, 'LICENSE-MIT'), 'utf8'), /Copyright \(c\) 2026 Windrise AI/);
+    for (const r of ['README.md', 'README.en.md']) {
+      const t = readFileSync(join(REPO_DIR, r), 'utf8');
+      assert.match(t, /LICENSE-MIT/, r);
+      assert.match(t, /CC BY-NC 4\.0/, r);
+    }
   });
 
   console.log(`\n全部 ${passed} 项钩子自测通过。`);

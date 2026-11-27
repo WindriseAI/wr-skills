@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: MIT
 // 通用安全红线守卫（PreToolUse）
 // 纯 Node.js 标准库零依赖，同时兼容 Claude Code 与 Antigravity 钩子协议，支持 observe / enforce 双模式，每条规则可单独设 off / observe / enforce。
 import { existsSync, readFileSync, appendFileSync, statSync } from 'node:fs';

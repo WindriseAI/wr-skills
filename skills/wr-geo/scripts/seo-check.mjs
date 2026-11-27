@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: MIT
 // wr-geo 检查脚本：按一份 JSON 配置检查一个静态站的构建产物。
 //
 // 用法：
