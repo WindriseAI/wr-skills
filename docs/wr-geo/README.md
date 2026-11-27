@@ -105,9 +105,9 @@ node skills/wr-geo/scripts/render.mjs out \
 | `product` | 产品名、第二语言名、支持邮箱 |
 | `openGraph` | 必填的 `og:*` 列表、图片最小尺寸、`twitter:card` 的期望值 |
 | `pages[]` | 每个可收录页的 `path`、`canonical`、`hreflang`（没有就写 `null`）、`titleContains`、`descriptionContains`、`h1`、`lead`（开头 N 词 / N 字内必须出现产品名）、`mustContain`、`mustNotContain` |
-| `robots` / `sitemap` | 站点级文件的名字，sitemap 的地址集合由 `pages[]` 自动推出 |
+| `robots` / `sitemap` | 站点级文件的名字，sitemap 的地址集合由 `pages[]` 自动推出；`robots.allowNamedBots` 列出站点立场允许点名拦截的爬虫（例如选了拦训练爬虫时写 `GPTBot`、`ClaudeBot`、`Google-Extended`） |
 | `llmsTxt` | 第一行、必须出现的字样、禁止出现的字样 |
-| `structuredData` | 禁用项列表（`aggregateRating`、`FAQPage` 等），以及哪些页要哪些 `@type` 和字段、offers 的价格档位与货币 |
+| `structuredData` | 禁用项列表（没有真实数据撑着的标记，例如没有真实评价时禁 `aggregateRating`），以及哪些页要哪些 `@type` 和字段、offers 的价格档位与货币 |
 | `siteWide` | 全站禁止出现的字样、禁止出现的 HTML 片段、必须带 noindex 的路径、产物里不该存在的文件 |
 
 ## 安装

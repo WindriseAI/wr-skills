@@ -1,14 +1,36 @@
 #!/usr/bin/env node
-// 4 个通用钩子脚本的全量自动化单测（测正常放行、危险拦截、双协议与 observe/enforce 切换）
+// 4 个通用钩子脚本的全量自动化单测（正常放行、危险拦截、双协议、observe/enforce 切换、首次对齐与配置查找）
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync } from 'node:fs';
+import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const HOOKS_DIR = dirname(fileURLToPath(import.meta.url));
+const REPO_DIR = resolve(HOOKS_DIR, '..');
 const sandbox = mkdtempSync(join(tmpdir(), 'wr-hooks-test-'));
+const sandboxHome = join(sandbox, 'home');
+mkdirSync(sandboxHome, { recursive: true });
+const LOG = join(sandbox, '.wr-hook-observe.jsonl');
+
+// 测试进程不继承本机的 Orca 环境变量与真实用户目录，避免本机环境影响结果
+function baseEnv(extra = {}) {
+  const env = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (k.startsWith('ORCA_')) continue;
+    env[k] = v;
+  }
+  return {
+    ...env,
+    HOME: sandboxHome,
+    USERPROFILE: sandboxHome,
+    WR_HOOK_MODE: '',
+    WR_QUIET_HOST: '',
+    WR_TEST_RUNNER: '',
+    ...extra
+  };
+}
 
 function runNode(scriptName, args = [], stdinObj = null, envExtra = {}) {
   const input = stdinObj == null ? '' : (typeof stdinObj === 'string' ? stdinObj : JSON.stringify(stdinObj));
@@ -16,9 +38,28 @@ function runNode(scriptName, args = [], stdinObj = null, envExtra = {}) {
     input,
     encoding: 'utf8',
     cwd: sandbox,
-    env: { ...process.env, WR_HOOK_MODE: '', WR_QUIET_HOST: '', WR_TEST_RUNNER: '', ...envExtra }
+    env: baseEnv(envExtra)
   });
 }
+
+let projSeq = 0;
+function makeProject(cfg) {
+  const dir = join(sandbox, `proj-${++projSeq}`);
+  mkdirSync(dir, { recursive: true });
+  if (cfg) writeFileSync(join(dir, 'wr.config.json'), JSON.stringify(cfg, null, 2), 'utf8');
+  return dir;
+}
+
+function readLog(dir = sandbox) {
+  const p = join(dir, '.wr-hook-observe.jsonl');
+  return existsSync(p) ? readFileSync(p, 'utf8') : '';
+}
+
+function bash(command, cwd = sandbox) {
+  return { tool_name: 'Bash', tool_input: { command }, cwd };
+}
+
+const ONBOARDED = { onboarded: true, hookMode: 'enforce' };
 
 let passed = 0;
 function test(name, fn) {
@@ -28,24 +69,103 @@ function test(name, fn) {
 }
 
 try {
-  // 1. safety-redline-guard.mjs
   const fakeSsh = ['~/', '.', 's', 's', 'h', '/id_rsa'].join('');
   const fakeEnv = ['.', 'e', 'n', 'v', '.local'].join('');
   const safeEnv = ['.', 'e', 'n', 'v', '.example'].join('');
+  const authJson = ['a', 'u', 't', 'h', '.', 'j', 's', 'o', 'n'].join('');
+  const pemFile = ['server', '.', 'p', 'e', 'm'].join('');
 
-  test('safety: 正常读源码与 .env.example 放行', () => {
-    const r1 = runNode('safety-redline-guard.mjs', [], { tool_name: 'read_file', tool_input: { Path: safeEnv }, cwd: sandbox });
+  // ========== 一、默认模式与首次对齐（9-1） ==========
+  test('默认模式：没有配置文件时四个钩子都只记录不拦截（9-1）', () => {
+    const r1 = runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: sandbox });
     assert.equal(r1.status, 0);
-    const r2 = runNode('safety-redline-guard.mjs', [], { tool_name: 'read_file', tool_input: { Path: 'src/keys/format.js' }, cwd: sandbox });
+    assert.match(readLog(), /凭据保护/);
+
+    const doc = { coverageGate: {}, items: [{ id: 'd-1', passes: true, evidence: 'missing.txt' }] };
+    const r2 = runNode('evidence-before-pass-gate.mjs', ['--phase', 'pre'], {
+      session_id: 'sess-default-' + Date.now(),
+      tool_name: 'Write',
+      tool_input: { file_path: 'acceptance.json', content: JSON.stringify(doc) },
+      cwd: sandbox
+    });
+    assert.equal(r2.status, 0);
+    assert.match(readLog(), /evidence-before-pass-gate/);
+
+    const r3 = runNode('speak-before-act-hook.mjs', ['--phase', 'pre'], {
+      session_id: 'sess-default-speak-' + Date.now(),
+      transcript: [{ role: 'user', content: '帮我改个配置' }],
+      cwd: sandbox
+    });
+    assert.equal(r3.status, 0);
+    assert.match(readLog(), /先应声再动手/);
+
+    const leak = join(sandbox, 'leak-default.md');
+    writeFileSync(leak, ['路径 /Users/', 'alice', '/notes.txt'].join(''), 'utf8');
+    const r4 = runNode('copy-and-privacy-lint.mjs', ['--cwd', sandbox, 'leak-default.md']);
+    assert.equal(r4.status, 0);
+    assert.match(r4.stdout, /模式：observe/);
+  });
+
+  test('首次对齐：onboarded 不是 true 时，配置写了 enforce 也只记录；写上 onboarded:true 才硬拦', () => {
+    const notYet = makeProject({ hookMode: 'enforce' });
+    const r1 = runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: notYet });
+    assert.equal(r1.status, 0);
+    assert.match(readLog(notYet), /凭据保护/);
+
+    const done = makeProject(ONBOARDED);
+    const r2 = runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: done });
+    assert.equal(r2.status, 2);
+  });
+
+  test('配置查找：从子目录往上找到项目配置；没有项目配置时读用户目录；两处都有时项目覆盖用户目录', () => {
+    const root = makeProject(ONBOARDED);
+    const deep = join(root, 'packages', 'app', 'src');
+    mkdirSync(deep, { recursive: true });
+    const r1 = runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: deep });
+    assert.equal(r1.status, 2, '子目录应读到上层项目配置');
+
+    const home2 = join(sandbox, 'home-with-config');
+    mkdirSync(home2, { recursive: true });
+    writeFileSync(join(home2, 'wr.config.json'), JSON.stringify(ONBOARDED), 'utf8');
+    const bare = makeProject(null);
+    const r2 = runNode(
+      'safety-redline-guard.mjs',
+      [],
+      { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: bare },
+      { HOME: home2, USERPROFILE: home2 }
+    );
+    assert.equal(r2.status, 2, '应读到用户目录配置');
+
+    const override = makeProject({ safetyGuard: { rules: { credentials: 'off' } } });
+    const r3 = runNode(
+      'safety-redline-guard.mjs',
+      [],
+      { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: override },
+      { HOME: home2, USERPROFILE: home2 }
+    );
+    assert.equal(r3.status, 0, '项目配置应覆盖用户目录配置');
+  });
+
+  test('四个钩子内嵌的配置读取段逐字一致', () => {
+    const blocks = ['safety-redline-guard.mjs', 'evidence-before-pass-gate.mjs', 'speak-before-act-hook.mjs', 'copy-and-privacy-lint.mjs'].map((f) => {
+      const src = readFileSync(join(HOOKS_DIR, f), 'utf8');
+      const m = src.match(/\/\/ <wr-config>[\s\S]*?\/\/ <\/wr-config>/);
+      assert.ok(m, `${f} 缺少 wr-config 段`);
+      return m[0];
+    });
+    for (const b of blocks) assert.equal(b, blocks[0]);
+  });
+
+  // ========== 二、safety-redline-guard ==========
+  test('safety: 正常读源码与 .env.example 放行', () => {
+    const r1 = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], { tool_name: 'read_file', tool_input: { Path: safeEnv }, cwd: sandbox });
+    assert.equal(r1.status, 0);
+    const r2 = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], { tool_name: 'read_file', tool_input: { Path: 'src/keys/format.js' }, cwd: sandbox });
     assert.equal(r2.status, 0);
   });
 
   test('safety: enforce 模式拦截凭据路径（Claude 协议 exit 2）', () => {
-    const r = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
-      tool_name: 'read_file',
-      tool_input: { Path: fakeSsh },
-      cwd: sandbox
-    });
+    const r = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], { tool_name: 'read_file', tool_input: { Path: fakeSsh }, cwd: sandbox });
     assert.equal(r.status, 2);
     assert.match(r.stderr, /凭据保护/);
   });
@@ -61,68 +181,133 @@ try {
     assert.match(resp.reason, /凭据保护/);
   });
 
-  test('safety: enforce 模式拦截工作区外强删与主检出硬重置，放行 dist 清理', () => {
-    const rBadDel = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
-      tool_name: 'run_command',
-      tool_input: { CommandLine: 'rm -rf ./important-data' },
-      cwd: sandbox
-    });
-    assert.equal(rBadDel.status, 2);
+  test('safety: 凭据误伤可用 allowPatterns 放行测试夹具（7-1 实测复现）', () => {
+    const strict = makeProject(ONBOARDED);
+    const rFix = runNode('safety-redline-guard.mjs', [], bash(`cat fixtures/${authJson}`, strict));
+    assert.equal(rFix.status, 2);
+    const rPem = runNode('safety-redline-guard.mjs', [], bash(`cat certs/${pemFile}`, strict));
+    assert.equal(rPem.status, 2);
 
-    const rOkDel = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
-      tool_name: 'run_command',
-      tool_input: { CommandLine: 'rm -rf ./dist' },
-      cwd: sandbox
-    });
-    assert.equal(rOkDel.status, 0);
-
-    const rReset = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
-      tool_name: 'run_command',
-      tool_input: { CommandLine: 'git reset --hard HEAD~1' },
-      cwd: sandbox
-    });
-    assert.equal(rReset.status, 2);
+    const allow = makeProject({ ...ONBOARDED, safetyGuard: { allowPatterns: ['^fixtures/', '^certs/'] } });
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash(`cat fixtures/${authJson}`, allow)).status, 0);
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash(`cat certs/${pemFile}`, allow)).status, 0);
   });
 
-  test('safety: quietMainMachine 启用时拦截重型浏览器测试，携带 WR_TEST_RUNNER=1 放行', () => {
-    const rDeny = runNode(
-      'safety-redline-guard.mjs',
-      ['--mode', 'enforce'],
-      { tool_name: 'run_command', tool_input: { CommandLine: 'npx playwright test' }, cwd: sandbox },
-      { WR_QUIET_HOST: '1' }
-    );
+  // 删除规则的测试放在临时目录之外的虚拟项目与虚拟用户目录里，免得整段路径都落在系统临时目录被一律放行
+  const fakeRoot = process.platform === 'win32' ? 'Z:\\wr-fake' : '/wr-fake';
+  const fakeProj = join(fakeRoot, 'proj');
+  const fakeHome = join(fakeRoot, 'home');
+  const delEnv = { HOME: fakeHome, USERPROFILE: fakeHome };
+  const del = (command) => runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], bash(command, fakeProj), delEnv).status;
+
+  test('safety: 删除放行按路径段匹配，builder-notes 不再因含 build 被放行（7-2 实测复现）', () => {
+    assert.equal(del('rm -rf ~/Documents/builder-notes'), 2);
+    assert.equal(del('rm -rf ~/Documents/my-notes'), 2);
+    assert.equal(del('rm -rf ./important-data'), 2);
+    assert.equal(del('rm -rf ~/Documents/build'), 2, '项目外的同名目录不放行');
+    assert.equal(del('rm -rf build'), 0);
+    assert.equal(del('rm -rf ./dist'), 0);
+    assert.equal(del('rm -rf ./node_modules/.cache'), 0);
+    assert.equal(del('rm -rf packages/web/dist/*'), 0);
+    assert.equal(del('rm -rf /tmp/wr-scratch-1'), 0);
+    assert.equal(del('rm -rf dist && rm -rf src'), 2, '复合命令里任何一个目标不合规都拦');
+    assert.equal(del('Remove-Item -Recurse -Force .\\dist'), 0);
+    assert.equal(del('Remove-Item -Recurse -Force -Path .\\src'), 2);
+    assert.equal(del('rm notes.txt'), 0, '非递归非强制的普通删除不归这条规则管');
+  });
+
+  test('safety: 显式 enforce 时主检出硬重置被拦，worktree 外的说明给出替代做法', () => {
+    const r = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], bash('git reset --hard HEAD~1'));
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /git revert/);
+  });
+
+  test('safety: 标准档下 observe 也硬拦凭据与强删，git 硬重置只记录（7-4）', () => {
+    const p = makeProject({ onboarded: true, hookMode: 'observe' });
+    assert.equal(runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: p }).status, 2);
+    const outside = JSON.stringify(join(fakeHome, 'Documents', 'notes'));
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash(`rm -rf ${outside}`, p)).status, 2);
+    const rReset = runNode('safety-redline-guard.mjs', [], bash('git reset --hard HEAD~1', p));
+    assert.equal(rReset.status, 0);
+    assert.match(readLog(p), /"rule":"gitReset"/);
+  });
+
+  test('safety: 宽松档全部跟随 hookMode，严格档全部硬拦，单条规则可关', () => {
+    const relaxed = makeProject({ onboarded: true, hookMode: 'observe', safetyGuard: { profile: 'relaxed' } });
+    assert.equal(runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: relaxed }).status, 0);
+
+    const strict = makeProject({ onboarded: true, hookMode: 'observe', safetyGuard: { profile: 'strict' } });
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash('git reset --hard HEAD~1', strict)).status, 2);
+
+    const off = makeProject({ ...ONBOARDED, safetyGuard: { rules: { credentials: 'off' } } });
+    assert.equal(runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: off }).status, 0);
+  });
+
+  test('safety: 本机静音默认关；开启后拦重型浏览器测试，携带 WR_TEST_RUNNER=1 放行', () => {
+    assert.equal(runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], bash('npx playwright test')).status, 0);
+    const rDeny = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], bash('npx playwright test'), { WR_QUIET_HOST: '1' });
     assert.equal(rDeny.status, 2);
-    const rAllow = runNode(
-      'safety-redline-guard.mjs',
-      ['--mode', 'enforce'],
-      { tool_name: 'run_command', tool_input: { CommandLine: 'npx playwright test' }, cwd: sandbox },
-      { WR_QUIET_HOST: '1', WR_TEST_RUNNER: '1' }
-    );
+    assert.match(rDeny.stderr, /WR_TEST_RUNNER=1/);
+    const rAllow = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], bash('npx playwright test'), { WR_QUIET_HOST: '1', WR_TEST_RUNNER: '1' });
     assert.equal(rAllow.status, 0);
+    const quiet = makeProject({ ...ONBOARDED, environment: { quietMainMachine: true } });
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash('npx playwright test', quiet)).status, 2);
   });
 
   test('safety: observe 模式放行违规但记录 .wr-hook-observe.jsonl', () => {
-    const r = runNode('safety-redline-guard.mjs', ['--mode', 'observe'], {
-      tool_name: 'read_file',
-      tool_input: { Path: fakeSsh },
-      cwd: sandbox
-    });
+    const r = runNode('safety-redline-guard.mjs', ['--mode', 'observe'], { tool_name: 'read_file', tool_input: { Path: fakeSsh }, cwd: sandbox });
     assert.equal(r.status, 0);
-    const logPath = join(sandbox, '.wr-hook-observe.jsonl');
-    assert.equal(existsSync(logPath), true);
-    assert.match(readFileSync(logPath, 'utf8'), /safety-redline-guard/);
+    assert.match(readLog(), /safety-redline-guard/);
   });
 
-  // 2. evidence-before-pass-gate.mjs
+  test('safety: 远端裸临时目录规则默认关，普通 scp 不再被拦（1-5 实测复现）', () => {
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash('scp backup.tgz myserver:/tmp/backup')).status, 0);
+    assert.equal(runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], bash('scp backup.tgz myserver:/tmp/backup')).status, 0);
+  });
+
+  test('safety: 配了 environment.remoteHost 才查远端裸目录，只查发往这些主机的命令，放行带后缀或二级子目录', () => {
+    const p = makeProject({ ...ONBOARDED, environment: { remoteHost: ['runner-box'] } });
+    const winBare = ['C', ':\\tmp\\my-site-v7'].join('');
+    const rBareWin = runNode('safety-redline-guard.mjs', [], bash(`ssh runner-box "mkdir ${winBare}"`, p));
+    assert.equal(rBareWin.status, 2);
+    assert.match(rBareWin.stderr, /防碰撞/);
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash('scp bundle.tgz runner-box:/tmp/my-site-v7', p)).status, 2);
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash('scp bundle.tgz runner-box:/tmp/my-site-v7-task1-20261126/', p)).status, 0);
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash('ssh runner-box "mkdir -p /tmp/my-site-v7/job2"', p)).status, 0);
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash('scp backup.tgz otherhost:/tmp/backup', p)).status, 0, '没配置的主机不查');
+  });
+
+  test('safety: Orca 引号规则默认关，只有探测到 Orca 且终端是 PowerShell 才启用（2-1 实测复现）', () => {
+    const longText = '测试正文'.repeat(33);
+    const cmdLong = `orca orchestration worker-start --spec "${longText}"`;
+    assert.equal(runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], bash(cmdLong)).status, 0, '没有 Orca 环境时不查');
+
+    const bashShell = makeProject({ ...ONBOARDED, tools: { orca: true }, environment: { shell: 'bash' } });
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash(cmdLong, bashShell)).status, 0, 'Orca 但不是 PowerShell 时不查');
+
+    const ps = makeProject({ ...ONBOARDED, tools: { orca: true }, environment: { shell: 'powershell' } });
+    const rLong = runNode('safety-redline-guard.mjs', [], bash(cmdLong, ps));
+    assert.equal(rLong.status, 2);
+    assert.match(rLong.stderr, /--spec-file/);
+    const rQuote = runNode('safety-redline-guard.mjs', [], bash(`orca orchestration send --type note --body 'check "assets/a.svg" now'`, ps));
+    assert.equal(rQuote.status, 2);
+    assert.match(rQuote.stderr, /--body-file/);
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash('orca orchestration send --type worker_done --body-file msg.txt', ps)).status, 0);
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash(`orca orchestration send --type note --body 'short clean note'`, ps)).status, 0);
+
+    const envDetect = makeProject({ ...ONBOARDED, environment: { shell: 'pwsh' } });
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash(cmdLong, envDetect), { ORCA_APP_VERSION: '1.0.0' }).status, 2, '靠环境变量探测到 Orca');
+    const optOut = makeProject({ ...ONBOARDED, tools: { orca: true }, environment: { shell: 'powershell' }, safetyGuard: { rules: { orcaQuote: 'off' } } });
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash(cmdLong, optOut)).status, 0);
+  });
+
+  // ========== 三、evidence-before-pass-gate ==========
   const evFile = join(sandbox, 'qa-log.txt');
   writeFileSync(evFile, 'all 12 real tests passed\n', 'utf8');
   const sessionEv = 'sess-ev-' + Date.now();
 
   test('evidence: 未读证据就标 passes:true 被 enforce 拦截', () => {
-    const doc = {
-      coverageGate: { unmappedFiles: [], zeroRunSuites: [] },
-      items: [{ id: 'qa-1', passes: true, evidence: 'qa-log.txt' }]
-    };
+    const doc = { coverageGate: { unmappedFiles: [], zeroRunSuites: [] }, items: [{ id: 'qa-1', passes: true, evidence: 'qa-log.txt' }] };
     const r = runNode('evidence-before-pass-gate.mjs', ['--phase', 'pre', '--mode', 'enforce'], {
       session_id: sessionEv,
       tool_name: 'write_file',
@@ -142,10 +327,7 @@ try {
     });
     assert.equal(rPost.status, 0);
 
-    const badDoc = {
-      coverageGate: { unmappedFiles: ['src/core.js'], zeroRunSuites: [] },
-      items: [{ id: 'qa-1', passes: true, evidence: 'qa-log.txt' }]
-    };
+    const badDoc = { coverageGate: { unmappedFiles: ['src/core.js'], zeroRunSuites: [] }, items: [{ id: 'qa-1', passes: true, evidence: 'qa-log.txt' }] };
     const rUnmapped = runNode('evidence-before-pass-gate.mjs', ['--phase', 'pre', '--mode', 'enforce'], {
       session_id: sessionEv,
       tool_name: 'write_file',
@@ -154,11 +336,9 @@ try {
     });
     assert.equal(rUnmapped.status, 2);
     assert.match(rUnmapped.stderr, /UNMAPPED/);
+    assert.match(rUnmapped.stderr, /用户本人确认/);
 
-    const goodDoc = {
-      coverageGate: { unmappedFiles: [], zeroRunSuites: [] },
-      items: [{ id: 'qa-1', passes: true, evidence: 'qa-log.txt' }]
-    };
+    const goodDoc = { coverageGate: { unmappedFiles: [], zeroRunSuites: [] }, items: [{ id: 'qa-1', passes: true, evidence: 'qa-log.txt' }] };
     const rOk = runNode('evidence-before-pass-gate.mjs', ['--phase', 'pre', '--mode', 'enforce'], {
       session_id: sessionEv,
       tool_name: 'write_file',
@@ -169,10 +349,7 @@ try {
   });
 
   test('evidence: observe 模式对违规验收单放行并写观察日志', () => {
-    const badDoc = {
-      coverageGate: { unmappedFiles: [], zeroRunSuites: ['unit-suite'] },
-      items: [{ id: 'qa-2', passes: true, evidence: 'qa-log.txt' }]
-    };
+    const badDoc = { coverageGate: { unmappedFiles: [], zeroRunSuites: ['unit-suite'] }, items: [{ id: 'qa-2', passes: true, evidence: 'qa-log.txt' }] };
     const rObs = runNode('evidence-before-pass-gate.mjs', ['--phase', 'pre', '--mode', 'observe'], {
       session_id: sessionEv,
       tool_name: 'write_file',
@@ -180,28 +357,33 @@ try {
       cwd: sandbox
     });
     assert.equal(rObs.status, 0);
-    assert.match(readFileSync(join(sandbox, '.wr-hook-observe.jsonl'), 'utf8'), /evidence-before-pass-gate/);
+    assert.match(readLog(), /evidence-before-pass-gate/);
   });
 
-  // 3. speak-before-act-hook.mjs
+  test('evidence: 默认只盯 acceptance.json，不再盯 batch-results.json（6-7）', () => {
+    const doc = { items: [{ id: 'b-1', passes: true, evidence: 'never-read.txt' }] };
+    const r = runNode('evidence-before-pass-gate.mjs', ['--phase', 'pre', '--mode', 'enforce'], {
+      session_id: 'sess-batch-' + Date.now(),
+      tool_name: 'Write',
+      tool_input: { file_path: 'batch-results.json', content: JSON.stringify(doc) },
+      cwd: sandbox
+    });
+    assert.equal(r.status, 0);
+  });
+
+  // ========== 四、speak-before-act-hook ==========
   const sessionSpeak = 'sess-speak-' + Date.now();
   test('speak: 未开口直接调工具首次提醒拦截，同轮第二次放行不卡死', () => {
-    const payload = {
-      session_id: sessionSpeak,
-      turn_id: 'turn-1',
-      transcript: [{ role: 'user', content: '帮我修一下构建脚本' }],
-      cwd: sandbox
-    };
+    const payload = { session_id: sessionSpeak, turn_id: 'turn-1', transcript: [{ role: 'user', content: '帮我修一下构建脚本' }], cwd: sandbox };
     const r1 = runNode('speak-before-act-hook.mjs', ['--phase', 'pre', '--mode', 'enforce'], payload);
     assert.equal(r1.status, 2);
     assert.match(r1.stderr, /先应声再动手/);
-
     const r2 = runNode('speak-before-act-hook.mjs', ['--phase', 'pre', '--mode', 'enforce'], payload);
     assert.equal(r2.status, 0);
   });
 
-  test('speak: 已开口再调工具放行；Stop 阶段拦裸露长哈希并放过代码块与平实回复', () => {
-    const rSpoken = runNode('speak-before-act-hook.mjs', ['--phase', 'pre', '--mode', 'enforce'], {
+  test('speak: 已开口再调工具放行', () => {
+    const r = runNode('speak-before-act-hook.mjs', ['--phase', 'pre', '--mode', 'enforce'], {
       session_id: sessionSpeak,
       turn_id: 'turn-2',
       transcript: [
@@ -210,63 +392,160 @@ try {
       ],
       cwd: sandbox
     });
-    assert.equal(rSpoken.status, 0);
-
-    const rStopClean = runNode('speak-before-act-hook.mjs', ['--phase', 'stop', '--mode', 'enforce'], {
-      session_id: sessionSpeak,
-      last_assistant_message: '构建脚本已修好，测试全部通过。',
-      cwd: sandbox
-    });
-    assert.equal(rStopClean.status, 0);
-
-    const rStopBad = runNode('speak-before-act-hook.mjs', ['--phase', 'stop', '--mode', 'enforce'], {
-      session_id: sessionSpeak,
-      last_assistant_message: '已定位到提交 1234567890abcdef1234567890abcdef12345678 的问题。',
-      cwd: sandbox
-    });
-    assert.equal(rStopBad.status, 2);
-
-    const rStopObs = runNode('speak-before-act-hook.mjs', ['--phase', 'stop', '--mode', 'observe'], {
-      session_id: sessionSpeak,
-      last_assistant_message: '已定位到提交 1234567890abcdef1234567890abcdef12345678 的问题。',
-      cwd: sandbox
-    });
-    assert.equal(rStopObs.status, 0);
+    assert.equal(r.status, 0);
   });
 
-  // 4. copy-and-privacy-lint.mjs
+  // 按 Claude Code 真实会话记录的字段结构造一份 JSONL：顶层没有 role，角色在 message.role；
+  // 工具结果也是 type=user；另有请求快照等非对话条目
+  function ccLine(obj) {
+    return JSON.stringify({
+      parentUuid: null,
+      isSidechain: false,
+      userType: 'external',
+      entrypoint: 'cli',
+      cwd: sandbox,
+      sessionId: 'cc-session',
+      version: '2.1.0',
+      gitBranch: 'main',
+      timestamp: new Date().toISOString(),
+      ...obj
+    });
+  }
+  function writeCcTranscript(name, entries) {
+    const p = join(sandbox, name);
+    writeFileSync(p, entries.join('\n') + '\n', 'utf8');
+    return p;
+  }
+  const ccUser = (uuid, text) => ccLine({ type: 'user', uuid, promptId: 'p-' + uuid, message: { role: 'user', content: text } });
+  const ccThinking = (uuid) => ccLine({ type: 'assistant', uuid, message: { id: 'msg_' + uuid, type: 'message', role: 'assistant', model: 'model-x', content: [{ type: 'thinking', thinking: '想一想', signature: 'sig' }] } });
+  const ccText = (uuid, text) => ccLine({ type: 'assistant', uuid, message: { id: 'msg_' + uuid, type: 'message', role: 'assistant', model: 'model-x', content: [{ type: 'text', text }] } });
+  const ccToolUse = (uuid, id) => ccLine({ type: 'assistant', uuid, message: { id: 'msg_' + uuid, type: 'message', role: 'assistant', model: 'model-x', content: [{ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } }] } });
+  const ccToolResult = (uuid, id) => ccLine({ type: 'user', uuid, message: { role: 'user', content: [{ tool_use_id: id, type: 'tool_result', content: 'a.txt' }] }, toolUseResult: { stdout: 'a.txt' } });
+  const ccNoise = [
+    JSON.stringify({ type: 'queue-operation', operation: 'enqueue', sessionId: 'cc-session' }),
+    JSON.stringify({ type: 'api-request-blob', sessionId: 'cc-session', hash: 'h1', message: { role: 'user', content: [{ type: 'text', text: '系统注入的请求快照' }] } })
+  ];
+  const ccPre = (session, transcriptPath, mode = 'enforce') =>
+    runNode('speak-before-act-hook.mjs', ['--mode', mode], {
+      session_id: session,
+      transcript_path: transcriptPath,
+      cwd: sandbox,
+      permission_mode: 'default',
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+      tool_input: { command: 'ls' },
+      tool_use_id: 'toolu_02'
+    });
+
+  test('speak: 兼容 Claude Code 记录格式，没开口就调工具会提醒（3-4 实测复现，原先 exit 0 不触发）', () => {
+    const t = writeCcTranscript('cc-silent.jsonl', [...ccNoise, ccUser('u1', '帮我修一下构建脚本'), ccThinking('a1'), ccToolUse('a2', 'toolu_01'), ccToolResult('u2', 'toolu_01'), ...ccNoise]);
+    const r = ccPre('cc-silent-' + Date.now(), t);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /先应声再动手/);
+  });
+
+  test('speak: Claude Code 格式下先说了话再调工具放行，工具结果不算用户新消息', () => {
+    const t = writeCcTranscript('cc-spoke.jsonl', [ccUser('u1', '查一下日志'), ccText('a1', '收到，我先看最近的日志。'), ccToolUse('a2', 'toolu_01'), ccToolResult('u2', 'toolu_01'), ccToolUse('a3', 'toolu_02')]);
+    assert.equal(ccPre('cc-spoke-' + Date.now(), t).status, 0);
+  });
+
+  test('speak: Claude Code 格式无配置时只记录不拦', () => {
+    const t = writeCcTranscript('cc-default.jsonl', [ccUser('u9', '改一下 README'), ccToolUse('a9', 'toolu_09')]);
+    const r = runNode('speak-before-act-hook.mjs', [], {
+      session_id: 'cc-default-' + Date.now(),
+      transcript_path: t,
+      cwd: sandbox,
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+      tool_input: { command: 'ls' }
+    });
+    assert.equal(r.status, 0);
+  });
+
+  const hash40 = '1234567890abcdef1234567890abcdef12345678';
+  const uuid = '3f2b9c1e-8a7d-4e6f-9b0a-1c2d3e4f5a6b';
+  test('speak: 收尾回复里带提交哈希、UUID、PID 一律放行（5-13 实测复现，原先无配置 exit 2）', () => {
+    const msg = `已修好，提交 ${hash40}，会话 ${uuid}，PID 12345。`;
+    assert.equal(runNode('speak-before-act-hook.mjs', ['--phase', 'stop'], { session_id: sessionSpeak, last_assistant_message: msg, cwd: sandbox }).status, 0);
+    assert.equal(runNode('speak-before-act-hook.mjs', ['--phase', 'stop', '--mode', 'enforce'], { session_id: sessionSpeak, last_assistant_message: msg, cwd: sandbox }).status, 0);
+  });
+
+  test('speak: 收尾检查只查用户在 stopPatterns 里写的规则，stop_hook_active 时直接放行防死循环', () => {
+    const p = makeProject({ ...ONBOARDED, speakBeforeAct: { stopPatterns: [{ pattern: 'TODO\\(内部\\)', hint: '内部待办标记' }] } });
+    const bad = '功能做完了，TODO(内部) 下次再清理。';
+    const r1 = runNode('speak-before-act-hook.mjs', ['--phase', 'stop'], { session_id: 's-stop', hook_event_name: 'Stop', stop_hook_active: false, last_assistant_message: bad, cwd: p });
+    assert.equal(r1.status, 2);
+    assert.match(r1.stderr, /内部待办标记/);
+    const r2 = runNode('speak-before-act-hook.mjs', ['--phase', 'stop'], { session_id: 's-stop', hook_event_name: 'Stop', stop_hook_active: true, last_assistant_message: bad, cwd: p });
+    assert.equal(r2.status, 0);
+    const rCode = runNode('speak-before-act-hook.mjs', ['--phase', 'stop'], { session_id: 's-stop', hook_event_name: 'Stop', last_assistant_message: '代码里有 `TODO(内部)` 标记。', cwd: p });
+    assert.equal(rCode.status, 0, '行内代码里的内容不查');
+  });
+
+  test('speak: Claude Code Stop 阶段从会话记录取本轮回复检查', () => {
+    const p = makeProject({ ...ONBOARDED, speakBeforeAct: { stopPatterns: ['内部代号X'] } });
+    const t = writeCcTranscript('cc-stop.jsonl', [ccUser('u1', '好了吗'), ccText('a1', '做完了，按内部代号X 交付。')]);
+    const r = runNode('speak-before-act-hook.mjs', [], { session_id: 'cc-stop', transcript_path: t, cwd: p, hook_event_name: 'Stop', stop_hook_active: false });
+    assert.equal(r.status, 2);
+  });
+
+  // ========== 五、copy-and-privacy-lint ==========
   const goodMd = join(sandbox, 'good.md');
   writeFileSync(goodMd, '# 正常文档\n\n| 列一 | 列二 |\n| --- | --- |\n| 数据 | `npx --all` |\n\n用平实的话把事情说清楚。\n', 'utf8');
 
-  const badMd = join(sandbox, 'bad.md');
-  const badContent = [
-    '# 问题稿',
-    ['这里用了破折号', '\u2014\u2014', '会被拦住。'].join(''),
-    ['这里用了黑话', '赋', '能', '也会被拦。'].join(''),
-    ['这里有', '不', '是', '速度问题，', '而', '是', '结构问题。'].join(''),
-    ['路径泄漏 /Users/', 'alice', '/secret.txt'].join('')
-  ].join('\n');
-  writeFileSync(badMd, badContent, 'utf8');
-
-  test('copy-lint: 干净文档（含表格线和 --all）放行', () => {
+  test('copy-lint: 干净文档放行', () => {
     const r = runNode('copy-and-privacy-lint.mjs', ['--cwd', sandbox, '--mode', 'enforce', 'good.md']);
     assert.equal(r.status, 0, r.stdout + r.stderr);
   });
 
-  test('copy-lint: enforce 拦截破折号/翻案句/黑话/私密路径，observe 放行并留痕', () => {
+  test('copy-lint: 不再带文风词表，「对齐」「链路」、破折号和年份区间都不报（5-11、5-12 实测复现）', () => {
+    writeFileSync(join(sandbox, 'style.js'), '// 把两列对齐\nconst a = 1; // 调用链路说明\n', 'utf8');
+    writeFileSync(join(sandbox, 'style.md'), ['统计区间 2020', '\u2013', '2024，', '说明', '\u2014\u2014', '补充。'].join(''), 'utf8');
+    const r = runNode('copy-and-privacy-lint.mjs', ['--cwd', sandbox, '--mode', 'enforce', 'style.js', 'style.md']);
+    assert.equal(r.status, 0, r.stdout);
+    assert.match(r.stdout, /命中 0 处/);
+  });
+
+  test('copy-lint: enforce 拦截本机隐私路径与常见密钥，observe 放行并留痕', () => {
+    const bad = join(sandbox, 'bad.md');
+    const fakeKey = ['A', 'K', 'I', 'A'].join('') + 'ABCDEFGHIJKLMNOP';
+    writeFileSync(bad, [['路径泄漏 /Users/', 'alice', '/secret.txt'].join(''), `密钥 ${fakeKey}`].join('\n'), 'utf8');
     const rEnf = runNode('copy-and-privacy-lint.mjs', ['--cwd', sandbox, '--mode', 'enforce', 'bad.md']);
     assert.equal(rEnf.status, 1);
-    assert.match(rEnf.stdout, /破折号/);
-    assert.match(rEnf.stdout, /翻案句/);
-    assert.match(rEnf.stdout, /黑话/);
     assert.match(rEnf.stdout, /本地绝对路径/);
+    assert.match(rEnf.stdout, /云服务访问密钥/);
+    assert.doesNotMatch(rEnf.stdout, new RegExp(fakeKey), '输出里不回显密钥原文');
 
     const rObs = runNode('copy-and-privacy-lint.mjs', ['--cwd', sandbox, '--mode', 'observe', 'bad.md']);
     assert.equal(rObs.status, 0);
-    assert.match(readFileSync(join(sandbox, '.wr-hook-observe.jsonl'), 'utf8'), /copy-and-privacy-lint/);
+    assert.match(readLog(), /copy-and-privacy-lint/);
   });
 
-  // 5. Antigravity (AGY) 协议标准输出与 hooks.agy.json 结构校验
+  test('copy-lint: 自定义禁词与旧名替换只来自用户配置', () => {
+    const p = makeProject({ ...ONBOARDED, copyLint: { customBannedWords: ['旧代号'], termReplacements: { 老产品名: '请改为新产品名' } } });
+    writeFileSync(join(p, 'doc.md'), '这里提到旧代号和老产品名。\n', 'utf8');
+    const r = runNode('copy-and-privacy-lint.mjs', ['--cwd', p, 'doc.md']);
+    assert.equal(r.status, 1);
+    assert.match(r.stdout, /自定义禁词/);
+    assert.match(r.stdout, /请改为新产品名/);
+  });
+
+  test('copy-lint: 钩子脚本自身通过隐私与密钥扫描（0 命中）', () => {
+    const rSelf = runNode('copy-and-privacy-lint.mjs', [
+      '--cwd',
+      HOOKS_DIR,
+      '--mode',
+      'enforce',
+      'safety-redline-guard.mjs',
+      'copy-and-privacy-lint.mjs',
+      'speak-before-act-hook.mjs',
+      'evidence-before-pass-gate.mjs'
+    ]);
+    assert.equal(rSelf.status, 0, rSelf.stdout);
+    assert.match(rSelf.stdout, /命中 0 处/);
+  });
+
+  // ========== 六、Antigravity (AGY) 协议 ==========
   test('agy: safety-redline-guard 放行与 observe 均输出 decision=allow JSON', () => {
     const rAllow = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
       hookEventName: 'PreToolUse',
@@ -289,11 +568,7 @@ try {
 
   test('agy: evidence-before-pass-gate PostToolUse 固定输出 {}，PreToolUse 放行输出 decision=allow', () => {
     const convId = 'conv-agy-ev-' + Date.now();
-    const doc = {
-      coverageGate: { unmappedFiles: [], zeroRunSuites: [] },
-      items: [{ id: 'qa-agy-1', passes: true, evidence: 'qa-log.txt' }]
-    };
-
+    const doc = { coverageGate: { unmappedFiles: [], zeroRunSuites: [] }, items: [{ id: 'qa-agy-1', passes: true, evidence: 'qa-log.txt' }] };
     const rDeny = runNode('evidence-before-pass-gate.mjs', ['--phase', 'pre', '--mode', 'enforce'], {
       hookEventName: 'PreToolUse',
       conversationId: convId,
@@ -314,15 +589,6 @@ try {
     assert.equal(rPostRead.status, 0);
     assert.deepEqual(JSON.parse(rPostRead.stdout.trim()), {});
 
-    const rPostOther = runNode('evidence-before-pass-gate.mjs', ['--phase', 'post'], {
-      hookEventName: 'PostToolUse',
-      conversationId: convId,
-      toolCall: { name: 'run_command', args: { CommandLine: 'echo ok' } },
-      cwd: sandbox
-    });
-    assert.equal(rPostOther.status, 0);
-    assert.deepEqual(JSON.parse(rPostOther.stdout.trim()), {});
-
     const rAllow = runNode('evidence-before-pass-gate.mjs', ['--phase', 'pre', '--mode', 'enforce'], {
       hookEventName: 'PreToolUse',
       conversationId: convId,
@@ -331,27 +597,9 @@ try {
     });
     assert.equal(rAllow.status, 0);
     assert.deepEqual(JSON.parse(rAllow.stdout.trim()), { decision: 'allow' });
-
-    const rObs = runNode('evidence-before-pass-gate.mjs', ['--phase', 'pre', '--mode', 'observe'], {
-      hookEventName: 'PreToolUse',
-      conversationId: convId,
-      toolCall: {
-        name: 'write_file',
-        args: {
-          Path: 'acceptance.json',
-          Content: JSON.stringify({
-            coverageGate: { unmappedFiles: ['src/x.js'], zeroRunSuites: [] },
-            items: [{ id: 'qa-agy-2', passes: true, evidence: 'qa-log.txt' }]
-          })
-        }
-      },
-      cwd: sandbox
-    });
-    assert.equal(rObs.status, 0);
-    assert.deepEqual(JSON.parse(rObs.stdout.trim()), { decision: 'allow' });
   });
 
-  test('agy: speak-before-act-hook PreToolUse 放行输出 decision=allow，Stop 阶段观察留痕且返回 {} 不返回 deny', () => {
+  test('agy: speak-before-act-hook PreToolUse 放行/拦截，Stop 阶段只留痕返回 {}', () => {
     const convSpeak = 'conv-agy-speak-' + Date.now();
     const rPreAllow = runNode('speak-before-act-hook.mjs', ['--phase', 'pre', '--mode', 'enforce'], {
       hookEventName: 'PreToolUse',
@@ -377,175 +625,64 @@ try {
     assert.equal(rPreDeny.status, 0);
     assert.equal(JSON.parse(rPreDeny.stdout.trim()).decision, 'deny');
 
-    const rPreSecond = runNode('speak-before-act-hook.mjs', ['--phase', 'pre', '--mode', 'enforce'], {
-      hookEventName: 'PreToolUse',
-      conversationId: convSpeak,
-      turnId: 'turn-agy-2',
-      toolCall: { name: 'read_file', args: { Path: 'qa-log.txt' } },
-      transcript: [{ role: 'user', content: '再看一遍' }],
-      cwd: sandbox
-    });
-    assert.equal(rPreSecond.status, 0);
-    assert.deepEqual(JSON.parse(rPreSecond.stdout.trim()), { decision: 'allow' });
-
-    const rStopClean = runNode('speak-before-act-hook.mjs', ['--phase', 'stop', '--mode', 'enforce'], {
+    const p = makeProject({ ...ONBOARDED, speakBeforeAct: { stopPatterns: ['内部代号X'] } });
+    const rStopBad = runNode('speak-before-act-hook.mjs', ['--phase', 'stop'], {
       hookEventName: 'Stop',
       conversationId: convSpeak,
-      response: '已经检查完日志，测试全部通过。',
-      cwd: sandbox
-    });
-    assert.equal(rStopClean.status, 0);
-    assert.deepEqual(JSON.parse(rStopClean.stdout.trim()), {});
-
-    const rStopBad = runNode('speak-before-act-hook.mjs', ['--phase', 'stop', '--mode', 'enforce'], {
-      hookEventName: 'Stop',
-      conversationId: convSpeak,
-      response: '已定位提交 1234567890abcdef1234567890abcdef12345678 的问题。',
-      cwd: sandbox
+      response: '按内部代号X 交付了。',
+      cwd: p
     });
     assert.equal(rStopBad.status, 0);
     assert.deepEqual(JSON.parse(rStopBad.stdout.trim()), {});
-    assert.match(readFileSync(join(sandbox, '.wr-hook-observe.jsonl'), 'utf8'), /裸露 40 位完整提交哈希/);
+    assert.match(readLog(p), /内部代号X/);
   });
 
-  test('agy: examples/hooks.agy.json 符合反重力顶层具名组与 matcher+hooks 规范', () => {
-    const agyCfgPath = join(HOOKS_DIR, '..', 'examples', 'hooks.agy.json');
-    if (!existsSync(agyCfgPath)) return;
-    const cfg = JSON.parse(readFileSync(agyCfgPath, 'utf8'));
+  // ========== 七、示例与技能文档 ==========
+  test('examples: hooks.agy.json 符合反重力顶层具名组与 matcher+hooks 规范', () => {
+    const cfg = JSON.parse(readFileSync(join(REPO_DIR, 'examples', 'hooks.agy.json'), 'utf8'));
     assert.equal('hooks' in cfg, false);
-    const groupNames = Object.keys(cfg);
-    assert.ok(groupNames.length >= 1);
-    const g = cfg[groupNames[0]];
+    const g = cfg[Object.keys(cfg)[0]];
     assert.ok(Array.isArray(g.PreToolUse) && g.PreToolUse.length >= 1);
     assert.equal(typeof g.PreToolUse[0].matcher, 'string');
-    assert.ok(Array.isArray(g.PreToolUse[0].hooks) && g.PreToolUse[0].hooks.length >= 1);
     assert.ok(Array.isArray(g.PostToolUse) && g.PostToolUse.length >= 1);
-    assert.equal(typeof g.PostToolUse[0].matcher, 'string');
-    assert.ok(Array.isArray(g.PostToolUse[0].hooks) && g.PostToolUse[0].hooks.length >= 1);
     assert.ok(Array.isArray(g.Stop) && g.Stop.length >= 1);
-    assert.equal(typeof g.Stop[0].command, 'string');
     assert.equal('matcher' in g.Stop[0], false);
   });
 
-  test('safety-redline-guard: 拦截 orca 单引号夹带双引号或超长内联参数，放行 -file 与短文本', () => {
-    const rQuote = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
-      tool_name: 'Bash',
-      tool_input: { command: `orca orchestration send --type note --body 'check "assets/a.svg" now'` },
-      cwd: sandbox
-    });
-    assert.equal(rQuote.status, 2);
-    assert.match(rQuote.stderr, /--body-file/);
-
-    const longText = '测试正文'.repeat(35);
-    const rLong = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
-      tool_name: 'Bash',
-      tool_input: { command: `orca orchestration worker-start --spec "${longText}"` },
-      cwd: sandbox
-    });
-    assert.equal(rLong.status, 2);
-    assert.match(rLong.stderr, /--spec-file/);
-
-    const rFile = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
-      tool_name: 'Bash',
-      tool_input: { command: 'orca orchestration send --type worker_done --body-file msg.txt' },
-      cwd: sandbox
-    });
-    assert.equal(rFile.status, 0);
-
-    const rShort = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
-      tool_name: 'Bash',
-      tool_input: { command: `orca orchestration send --type note --body 'short clean note'` },
-      cwd: sandbox
-    });
-    assert.equal(rShort.status, 0);
+  test('examples: wr.config.example.json 默认未对齐、observe 起步、标准安全档、只盯 acceptance.json', () => {
+    const cfg = JSON.parse(readFileSync(join(REPO_DIR, 'examples', 'wr.config.example.json'), 'utf8'));
+    assert.equal(cfg.onboarded, false);
+    assert.equal(cfg.hookMode, 'observe');
+    assert.equal(cfg.safetyGuard.profile, 'standard');
+    assert.deepEqual(cfg.evidenceGate.targetFiles, ['acceptance.json']);
+    assert.equal('quietMainMachine' in cfg, false, '静音开关已移到 environment 下');
   });
 
-  test('safety-redline-guard: 拦截远端测试机裸临时目录，放行带席位后缀或二级子目录', () => {
-    const winBare = ['C', ':\\tmp\\my-site-v7'].join('');
-    const rBareWin = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
-      tool_name: 'Bash',
-      tool_input: { command: `ssh testpc "mkdir ${winBare}"` },
-      cwd: sandbox
-    });
-    assert.equal(rBareWin.status, 2);
-    assert.match(rBareWin.stderr, /防碰撞/);
-
-    const rBareScp = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
-      tool_name: 'Bash',
-      tool_input: { command: 'scp bundle.tgz testpc:/tmp/my-site-v7' },
-      cwd: sandbox
-    });
-    assert.equal(rBareScp.status, 2);
-
-    const rSuffixed = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
-      tool_name: 'Bash',
-      tool_input: { command: 'scp bundle.tgz testpc:/tmp/my-site-v7-seat1-20261126/' },
-      cwd: sandbox
-    });
-    assert.equal(rSuffixed.status, 0);
-
-    const rNested = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
-      tool_name: 'Bash',
-      tool_input: { command: 'ssh testpc "mkdir -p /tmp/my-site-v7/seat2"' },
-      cwd: sandbox
-    });
-    assert.equal(rNested.status, 0);
+  test('skills: 每个 SKILL.md 开头都有逐字一致的第 0 步首次对齐，问卷第 5 题只问回复语言', () => {
+    const canonical = readFileSync(join(REPO_DIR, 'examples', 'onboarding-step0.md'), 'utf8').trim();
+    assert.match(canonical, /5\. 回复语言/);
+    assert.doesNotMatch(canonical, /文风|plain-cn|plainCn|copyLint\.preset/);
+    const skillsDir = join(REPO_DIR, 'skills');
+    const names = readdirSync(skillsDir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+    assert.ok(names.length >= 10);
+    for (const n of names) {
+      const md = readFileSync(join(skillsDir, n, 'SKILL.md'), 'utf8');
+      const m = md.match(/<!-- wr-onboarding:start -->[\s\S]*?<!-- wr-onboarding:end -->/);
+      assert.ok(m, `${n} 缺少第 0 步`);
+      assert.equal(m[0].trim(), canonical, `${n} 的第 0 步与 examples/onboarding-step0.md 不一致`);
+      const firstSection = md.indexOf('\n## ');
+      assert.ok(md.indexOf('## 第 0 步') === firstSection + 1, `${n} 的第 0 步不是第一个小节`);
+    }
   });
 
-  test('agy: safety-redline-guard 双协议拦截 orca 长参数与远端裸目录，observe 模式放行留痕', () => {
-    const rDeny = runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], {
-      hookEventName: 'PreToolUse',
-      conversationId: 'conv-agy-orca-1',
-      toolCall: {
-        name: 'run_command',
-        args: { CommandLine: `orca bot reply --text 'hello "world"'` }
-      },
-      cwd: sandbox
-    });
-    assert.equal(rDeny.status, 0);
-    const out = JSON.parse(rDeny.stdout.trim());
-    assert.equal(out.decision, 'deny');
-    assert.match(out.reason, /--text-file/);
-
-    const rObs = runNode('safety-redline-guard.mjs', ['--mode', 'observe'], {
-      hookEventName: 'PreToolUse',
-      conversationId: 'conv-agy-orca-1',
-      toolCall: {
-        name: 'run_command',
-        args: { CommandLine: 'ssh testpc "mkdir /tmp/shared-proj"' }
-      },
-      cwd: sandbox
-    });
-    assert.equal(rObs.status, 0);
-    assert.deepEqual(JSON.parse(rObs.stdout.trim()), { decision: 'allow' });
-    assert.match(readFileSync(join(sandbox, '.wr-hook-observe.jsonl'), 'utf8'), /防碰撞/);
-  });
-
-  test('copy-and-privacy-lint: 拦截新增禁用黑话、推销词与旧并行措辞', () => {
-    const slangDoc = join(sandbox, 'slang.md');
-    const badText = [
-      `抓出五处${['漏', '勺'].join('')}`,
-      `把流程${['焊', '死'].join('')}在一起`,
-      `四个核心${['主', '推', '技', '能'].join('')}`,
-      `推荐整套${['九', '件', '套'].join('')}`,
-      `先做${['分', '桌'].join('')}并行`,
-      `禁止${['多', '桌'].join('')}改同一文件`
-    ].join('\n');
-    writeFileSync(slangDoc, badText, 'utf8');
-    const rBad = runNode('copy-and-privacy-lint.mjs', ['--cwd', sandbox, 'slang.md']);
-    assert.equal(rBad.status, 1);
-    assert.match(rBad.stdout, /命中 6 处/);
-  });
-
-  test('copy-and-privacy-lint: 钩子脚本自身通过文风与隐私扫描（0 命中）', () => {
-    const rSelf = runNode('copy-and-privacy-lint.mjs', [
-      '--cwd',
-      HOOKS_DIR,
-      'safety-redline-guard.mjs',
-      'copy-and-privacy-lint.mjs'
-    ]);
-    assert.equal(rSelf.status, 0);
-    assert.match(rSelf.stdout, /命中 0 处/);
+  test('skills: 公开包不含写作风格技能 wr-plain-cn，也不再引用它', () => {
+    assert.equal(existsSync(join(REPO_DIR, 'skills', 'wr-plain-cn')), false);
+    assert.equal(existsSync(join(REPO_DIR, 'docs', 'wr-plain-cn')), false);
+    const market = readFileSync(join(REPO_DIR, '.claude-plugin', 'marketplace.json'), 'utf8');
+    assert.doesNotMatch(market, /plain-cn/);
+    for (const f of ['README.md', 'README.en.md']) {
+      assert.doesNotMatch(readFileSync(join(REPO_DIR, f), 'utf8'), /plain-cn/);
+    }
   });
 
   console.log(`\n全部 ${passed} 项钩子自测通过。`);

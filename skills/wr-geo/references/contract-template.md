@@ -15,12 +15,12 @@
 
 ## 1. 固定事实
 
-- 产品名 `【Example Product】`（中文名 `【示例产品】`），附属产品（浏览器 / 插件等）`【如有】`
+- 产品名 `【Example Product】`（第二语言名 `【示例产品】`，没有就删掉括号），其他产品线 `【如有，逐个写名字；没有就删掉这一项】`
 - 主标语 `【一句话标语，逐字】`
 - 主站根地址 `https://www.example.com`，第二个语言站根地址 `https://www.example.org`（换成真实域名）
 - 支持邮箱 `hello@example.com`
-- 支持平台 `【Windows 10 22H2 / Windows 11（64 位）；Mac、安卓待定】`
-- **能不能下载** `【还没有安装包，不许写下载地址、不许写版本已发布】`
+- 支持平台 `【逐个写操作系统或运行环境及版本；没定的写「待定，页面不写」】`
+- **能不能下载或注册** `【已上线就写入口地址和当前版本号；还没上线就写「页面上不许出现下载地址和已发布的说法」】`
 - 价格档位 `【逐档写清货币和金额；没定价就写「未定，页面上不出现价格」】`
 - 许可口径 `【哪些部分开源、哪些闭源；没定的部分写「页面不写」】`
 - 页面上**不许出现**的过期说法 `【逐条列】`
@@ -51,8 +51,8 @@ canonical 就是「规范地址」这一列，逐字照抄。只有这一列里�
    - `Organization` 包含 `name`、`alternateName`（第二语言名）、`url`、`logo`（绝对地址，文件在产物里）、`email`
    - `WebSite` 包含 `name`、`url`、`inLanguage`
    - `SoftwareApplication`（或 `WebApplication`）包含 `name`、`applicationCategory`、`operatingSystem`、`description`、`offers`（每档一个 `Offer`，`price` 一律纯数字字符串，`priceCurrency` 照实写）
-   - **禁止**出现 `aggregateRating`、`review`、`FAQPage`、`HowTo`、`downloadUrl`
-6. 有独立产品页（比如浏览器页）时，该页另加一个对应的 `SoftwareApplication` 节点。
+   - 没有真实数据撑着的标记一律不加：没有真实评价就不加 `aggregateRating`、`review`；页面上没有真实问答就不加 `FAQPage`；没有分步教程就不加 `HowTo`；还没有可下载的安装包就不加 `downloadUrl`。逐项写明本站加哪些、禁哪些：`【逐项写】`
+6. 有独立产品页（比如另一条产品线的介绍页）时，该页另加一个对应的 `SoftwareApplication` 节点。
 
 ## 4. 标题与描述底稿
 
@@ -73,7 +73,7 @@ canonical 就是「规范地址」这一列，逐字照抄。只有这一列里�
 
 ## 5. 站点级文件
 
-- `/robots.txt` 内容为 `User-agent: *` + `Allow: /` + `Sitemap: <本站根>/sitemap.xml`。**不许出现任何 Disallow 整站或针对搜索 / AI 爬虫的规则。**
+- `/robots.txt` 内容为 `User-agent: *` + `Allow: /` + `Sitemap: <本站根>/sitemap.xml`。**不许 Disallow 整站，不许拦搜索类爬虫。** 训练类爬虫（`GPTBot`、`ClaudeBot`、`Google-Extended` 等）拦不拦按 `geo.crawlerPolicy`：`allow-all` 时不点名任何爬虫；`block-training` 时只给这几个训练类爬虫各写一段 `Disallow: /`。本站选 `【allow-all / block-training】`
 - `/sitemap.xml` 只含第 2 节该站的规范地址（逐字一致），每条带 `<lastmod>`（取该页源文件最后一次提交日期，`YYYY-MM-DD`）。
 - `/llms.txt` 是一份带日期的事实单（Markdown）。第一行写 `# 【产品名】`，下面一句话说它是什么，然后写 `Checked on: 【YYYY-MM-DD】`，再列平台、价格、可收录页链接。价格必须与价格页逐字一致；不展示价格的站只写免费额度。
 - `http://` 请求 301 到 `https://`；`*.html`、`/index.html`、无斜杠版本这些重复地址 301 到规范地址；已下线的旧地址 301 到对应新页，不能 404 一片。

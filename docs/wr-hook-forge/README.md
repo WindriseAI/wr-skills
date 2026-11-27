@@ -21,16 +21,18 @@
 1. **二分规矩**。软偏好留 `AGENTS.md`，零例外客观硬规矩（安全、证据、路径脱敏、禁词、计数同步）进脚本。
 2. **先挂 `observe` 观察档**。记录命中日志到 `.wr-hook-observe.jsonl` 但不拦断操作，跑一阵核查有没有误伤正常场景。
 3. **补齐三组自测**。覆盖正常放行、`enforce` 拦截（含批量包装参数）和 `observe` 留痕，全部跑绿。
-4. **切 `enforce` 硬拦**。把 `wr.config.json` 里的 `hookMode` 改为 `"enforce"`，违规直接阻断并给出精确行号与替代做法。
+4. **切 `enforce` 硬拦**。确认 `wr.config.json` 里已有 `"onboarded": true`，再把 `hookMode` 改为 `"enforce"`，违规直接阻断并给出精确行号与替代做法。没有配置文件或还没完成首次对齐时，钩子一律只记录不拦。
 
 ## 自带 4 个通用钩子
 
 仓库根目录 [hooks/](../../hooks/) 已提供 4 个纯 Node.js 标准库零依赖脚本与全量自测（`node hooks/test-hooks.mjs`），配套配置模板位于 [examples/](../../examples/)，一共下面这 4 个脚本。
 
-- `hooks/safety-redline-guard.mjs`，涵盖安全四红线、PowerShell `orca` 长参数改 `-file` 防引号劈裂与远端裸临时目录防并发碰撞。
+- `hooks/safety-redline-guard.mjs`，涵盖凭据零触碰、递归强删只放行临时目录和项目内构建产物、主检出 git 硬重置提醒；本机静音、Orca 长参数改 `-file`、远端临时目录防碰撞三条按环境启用，默认关。
 - `hooks/evidence-before-pass-gate.mjs`
 - `hooks/speak-before-act-hook.mjs`
-- `hooks/copy-and-privacy-lint.mjs`，涵盖破折号、翻案句、商业与 AI 塑料黑话及本机隐私路径动态扫描。
+- `hooks/copy-and-privacy-lint.mjs`，扫描本机隐私路径与常见密钥，外加你自己配置的禁用词和旧名替换。
+
+每个字段的含义和默认值见 [examples/README.md](../../examples/README.md)。
 
 ## 安装
 

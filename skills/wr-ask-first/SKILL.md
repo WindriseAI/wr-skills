@@ -1,17 +1,40 @@
 ---
 name: wr-ask-first
-description: 动手前先挑刺并问清需求。写代码或做复杂方案前，先搜齐十个现成开源方案对比许可证与体积、按需挑选对口技能；强制先当面指出泄密风险、上下文膨胀、需求自相矛盾与二三阶隐患，不当应声虫；再用决策树分轮追问清所有空白，最终落盘到 docs/SPEC.md 才许动工。用户提出新产品立项、大功能开工、方案选型两难，或说「先别写代码」「帮我挑挑毛病」「先问清再做」「定一下规格」时使用。
+description: 动手前先挑刺并问清需求。写代码或做复杂方案前，先搜一批现成开源方案（默认 5 个，可配置）对比许可证与体积、按需挑选对口技能；强制先当面指出泄密风险、上下文膨胀、需求自相矛盾与二三阶隐患，不当应声虫；再用决策树分轮追问清所有空白，最终落盘到 docs/SPEC.md 才许动工。用户提出新产品立项、大功能开工、方案选型两难，或说「先别写代码」「帮我挑挑毛病」「先问清再做」「定一下规格」时使用。
 ---
 
 # wr-ask-first 动手前先挑刺并问清需求
 
 动手前把坑踩在纸上，省掉后面推翻重写的返工。改个错字或修一行明确报错这类小活不要启动本流程，直接做完即可。
 
+## 第 0 步 首次对齐（每次启用本技能先做）
+
+<!-- wr-onboarding:start -->
+先找配置文件 `wr.config.json`：从当前目录逐级往上找，再看用户目录（`~/wr.config.json`）；两份都有时，项目里的字段覆盖用户目录的。
+
+- 读到 `"onboarded": true`，就按里面的字段办事，不再提问，直接往下走。配置里没写的字段按下面各题的默认值理解。
+- 没有这个文件，或者没有 `"onboarded": true`，先把下面 8 题一次发给用户，每题括号里是默认值，并说明「回『好』就全按默认」。用户回「好」或只改了其中几题，其余一律按默认。
+- 收到答复后，把答案连同 `"onboarded": true` 写进项目根目录的 `wr.config.json`（用户要求全局生效就写 `~/wr.config.json`），已有字段保留不动，写完告诉用户写在哪、怎么改。字段全集和说明见 github.com/WindriseAI/wr-skills 的 `examples/README.md`。
+- 用户说「这次先不对齐」，就按默认值办事，不写文件，下次启用时再问。
+- 钩子在 `onboarded` 变成 `true` 之前一律只记录不拦截。
+
+1. 机器与测试环境：只有这一台电脑，还是另有测试机、容器或 CI？跑测试时能不能占用这台电脑的键盘、鼠标和浏览器？（只有一台；耗时长的测试先说预计多久，同意后在本机跑；可以占用）写入 `environment.machine`（`single` / `has-runner`）、`environment.heavyTestsOnMainMachine`（`allow` / `ask` / `deny`）、`environment.quietMainMachine`（`false`）、`environment.remoteHost`（测试机的 ssh 主机名，没有就留空）。
+2. 系统与工具：用什么系统和终端？在哪个 AI 工具里用？有没有装 Orca 多代理工作台？（系统、终端和宿主自动探测；Orca 自动探测）写入 `environment.os`、`environment.shell`、`environment.host`、`tools.orca`。
+3. 模型与额度：手上有哪几档模型？有没有第二家厂商的模型可以交叉复核？额度紧、一般还是宽松？（只用当前这一个模型；没有第二家；一般）写入 `modelTiers` 四档（全部留空就是单模型模式）、`review.crossVendor`（`false`）、`budget.mode`（`tight` / `normal` / `generous`）。
+4. 协作与发布：一个人做还是团队？要不要让 AI 开多个帮手并行？默认分支叫什么？推送、发版和对外提交由谁确认？（一个人；要并行时先问；分支自动探测；推送和发版必须用户确认）写入 `workflow.team`（`solo` / `team`）、`workflow.parallel`（`off` / `ask` / `on`）、`workflow.defaultBranch`、`workflow.branchPrefix`、`workflow.publishConfirm`（`always` / `push-and-release` / `never`）。
+5. 回复语言：回复用什么语言？（跟随用户提问的语言）写入 `language.output`（`auto` / `zh-CN` / `en`）。
+6. 做事强度：新功能要不要先问清并写规格？动手前搜不搜现成开源方案，搜几个？要不要定十倍目标？（大活才先问并写 `docs/SPEC.md`；搜 5 个；十倍目标只在用户提到性能或体积时提议）写入 `rigor.askFirst`（`off` / `big-only` / `always`）、`rigor.specPath`、`rigor.openSourceSurveyCount`、`rigor.tenX`（`off` / `ask`）。
+7. 安全尺度：安全红线用哪一档？有没有额外不许读的目录？（标准档：碰凭据和递归强删直接拦，git 硬重置只提醒；没有额外目录；删除走回收站）写入 `hookMode`（`observe` 起步）、`safetyGuard.profile`（`relaxed` / `standard` / `strict`）、`safetyGuard.extraProtectedPatterns`、`safetyGuard.trashCommand`。
+8. 项目类型：这个项目是网页或桌面界面、命令行或库、后端服务，还是官网营销站？有没有线上用户？官网是否允许 AI 训练爬虫？（自动探测类型；没有线上用户；允许搜索爬虫，训练爬虫由用户定）写入 `project.kind`（`web-ui` / `cli-lib` / `backend` / `marketing-site` / `other`）、`project.hasOnlineUsers`、`geo.languages`、`geo.region`、`geo.crawlerPolicy`（`allow-all` / `block-training` / `custom`）。
+<!-- wr-onboarding:end -->
+
+本技能主要用到第 3 题（`review.crossVendor` 决定盲审是否找第二家模型）和第 6 题（`rigor.askFirst` 决定什么活启动本流程，`rigor.specPath` 决定规格写到哪，`rigor.openSourceSurveyCount` 决定搜几个现成方案）。
+
 ## 四条硬规矩
 
 1. **绝不当应声虫。** 禁止用「这个想法很棒，我们可以马上开始」开场。先找茬，再立据。
 2. **代码和资料里能查到的事实自己查，不许反问人。** 仓库目录、现有依赖、配置文件、开源生态现状，一律先核实完再开口。
-3. **没有写进 `docs/SPEC.md` 且用户点头，不许动业务代码。**
+3. **没有写进规格文件（`rigor.specPath`，默认 `docs/SPEC.md`）且用户点头，不许动业务代码。** `rigor.askFirst` 为 `big-only`（默认）时只对大活启动本流程，为 `off` 时只在用户点名时启动。
 4. **任何推荐必须写清翻车条件。** 推翻条件写成可测的数字（延迟、体积、失败率、维护成本），不接受模糊形容词。
 
 ## 第一步 先搜齐现成方案与本机技能（能用现成就不从零造）
@@ -19,7 +42,7 @@ description: 动手前先挑刺并问清需求。写代码或做复杂方案前�
 在自己设计实现之前，先完成两项核查。
 
 1. **核查本机已有 Skill 与工具。** 只挑选与当前任务直接对口的技能按需挂上，避免把几十个无关工具塞进对话拖慢响应。
-2. **联网搜齐 10 个仍在维护的现成开源方案**（不足 10 个如实写出真实搜到的数量，禁止凑数编链接）。按下面表格逐项列出对比。
+2. **联网搜一批仍在维护的现成开源方案**，数量按 `rigor.openSourceSurveyCount`（默认 5 个，小活可以是 0）。搜不够就如实写出真实搜到的数量，禁止凑数编链接；宿主没有联网能力时如实说明，只对比本机已有依赖。按下面表格逐项列出对比。
 
 | 方案名与原仓链接 | 许可证及兼容性 | 安装包体积与依赖数 | 近半年维护情况 | 已知坑位与适用边界 |
 | --- | --- | --- | --- | --- |

@@ -7,9 +7,32 @@ description: 多工作树无重叠并行派活。总协调人只拆活、查证�
 
 把大活拆成互不踩脚的多条支线，每路配独立工作树和独占文件清单，协调人稳住全局，帮手各自快速交付。
 
+## 第 0 步 首次对齐（每次启用本技能先做）
+
+<!-- wr-onboarding:start -->
+先找配置文件 `wr.config.json`：从当前目录逐级往上找，再看用户目录（`~/wr.config.json`）；两份都有时，项目里的字段覆盖用户目录的。
+
+- 读到 `"onboarded": true`，就按里面的字段办事，不再提问，直接往下走。配置里没写的字段按下面各题的默认值理解。
+- 没有这个文件，或者没有 `"onboarded": true`，先把下面 8 题一次发给用户，每题括号里是默认值，并说明「回『好』就全按默认」。用户回「好」或只改了其中几题，其余一律按默认。
+- 收到答复后，把答案连同 `"onboarded": true` 写进项目根目录的 `wr.config.json`（用户要求全局生效就写 `~/wr.config.json`），已有字段保留不动，写完告诉用户写在哪、怎么改。字段全集和说明见 github.com/WindriseAI/wr-skills 的 `examples/README.md`。
+- 用户说「这次先不对齐」，就按默认值办事，不写文件，下次启用时再问。
+- 钩子在 `onboarded` 变成 `true` 之前一律只记录不拦截。
+
+1. 机器与测试环境：只有这一台电脑，还是另有测试机、容器或 CI？跑测试时能不能占用这台电脑的键盘、鼠标和浏览器？（只有一台；耗时长的测试先说预计多久，同意后在本机跑；可以占用）写入 `environment.machine`（`single` / `has-runner`）、`environment.heavyTestsOnMainMachine`（`allow` / `ask` / `deny`）、`environment.quietMainMachine`（`false`）、`environment.remoteHost`（测试机的 ssh 主机名，没有就留空）。
+2. 系统与工具：用什么系统和终端？在哪个 AI 工具里用？有没有装 Orca 多代理工作台？（系统、终端和宿主自动探测；Orca 自动探测）写入 `environment.os`、`environment.shell`、`environment.host`、`tools.orca`。
+3. 模型与额度：手上有哪几档模型？有没有第二家厂商的模型可以交叉复核？额度紧、一般还是宽松？（只用当前这一个模型；没有第二家；一般）写入 `modelTiers` 四档（全部留空就是单模型模式）、`review.crossVendor`（`false`）、`budget.mode`（`tight` / `normal` / `generous`）。
+4. 协作与发布：一个人做还是团队？要不要让 AI 开多个帮手并行？默认分支叫什么？推送、发版和对外提交由谁确认？（一个人；要并行时先问；分支自动探测；推送和发版必须用户确认）写入 `workflow.team`（`solo` / `team`）、`workflow.parallel`（`off` / `ask` / `on`）、`workflow.defaultBranch`、`workflow.branchPrefix`、`workflow.publishConfirm`（`always` / `push-and-release` / `never`）。
+5. 回复语言：回复用什么语言？（跟随用户提问的语言）写入 `language.output`（`auto` / `zh-CN` / `en`）。
+6. 做事强度：新功能要不要先问清并写规格？动手前搜不搜现成开源方案，搜几个？要不要定十倍目标？（大活才先问并写 `docs/SPEC.md`；搜 5 个；十倍目标只在用户提到性能或体积时提议）写入 `rigor.askFirst`（`off` / `big-only` / `always`）、`rigor.specPath`、`rigor.openSourceSurveyCount`、`rigor.tenX`（`off` / `ask`）。
+7. 安全尺度：安全红线用哪一档？有没有额外不许读的目录？（标准档：碰凭据和递归强删直接拦，git 硬重置只提醒；没有额外目录；删除走回收站）写入 `hookMode`（`observe` 起步）、`safetyGuard.profile`（`relaxed` / `standard` / `strict`）、`safetyGuard.extraProtectedPatterns`、`safetyGuard.trashCommand`。
+8. 项目类型：这个项目是网页或桌面界面、命令行或库、后端服务，还是官网营销站？有没有线上用户？官网是否允许 AI 训练爬虫？（自动探测类型；没有线上用户；允许搜索爬虫，训练爬虫由用户定）写入 `project.kind`（`web-ui` / `cli-lib` / `backend` / `marketing-site` / `other`）、`project.hasOnlineUsers`、`geo.languages`、`geo.region`、`geo.crawlerPolicy`（`allow-all` / `block-training` / `custom`）。
+<!-- wr-onboarding:end -->
+
+本技能主要用到第 2 题（`tools.orca` 决定走路线 A 还是 B）、第 3 题（`modelTiers` 全部留空就是单模型模式）和第 4 题（`workflow.parallel`、`workflow.defaultBranch`、`workflow.branchPrefix`）。
+
 ## 五条核心纪律
 
-1. **总协调人只管拆活、查证、审回执、做合并，不写业务代码。** 协调会话一旦下场写业务细节，上下文立刻被源码塞满，迅速丢失全局视野。
+1. **总协调人只管拆活、查证、审回执、做合并，不写业务代码。** 协调会话一旦下场写业务细节，上下文立刻被源码塞满，迅速丢失全局视野。`workflow.parallel` 为 `off` 或活本身只改一两个文件时，不拆活，直接在当前会话做完。
 2. **一活一棵独立 `git worktree`，切死独占文件白名单。** 每份派活任务书必须明写允许改动的精确文件路径；如果两份活会碰到同一个文件，先改拆分边界，严禁两路同时改同一文件靠合并碰运气。
 3. **超过 300 行的文件先看结构大纲，再按 200 行以内分段读取。** 禁止盲目把整仓库或上千行文件塞进单轮对话；约定写进只读的 `docs/SPEC.md`，工具按需挂载。
 4. **按四档通用难度派活，模型映射外置到 `wr.config.json`。** 不同难度的活交给对应档位模型，省额度但不降低成品质量，最终验收始终由高档位把关。
@@ -32,7 +55,11 @@ description: 多工作树无重叠并行派活。总协调人只拆活、查证�
 
 ## 第二步 四档通用难度派活表
 
-读取项目根目录或用户目录的 `wr.config.json` 中 `modelTiers` 映射，按任务性质派单。
+按第 0 步读到的配置（当前目录往上找，再看用户目录）取 `modelTiers` 映射，按任务性质派单。
+
+- 四档全部留空或没有这个字段，就是**单模型模式**：不分档，所有子任务都用当前模型，只按下表区分任务性质和验收标准。
+- 只填了部分档位，空着的档位用相邻更高一档的模型代替；填的值看着像占位符（例如还写着 `your-` 开头的示例文字）时，先问用户实际用哪个模型，不要照字面去调用。
+- `review.crossVendor` 为 `false` 时，`tier3_reviewer` 用同一模型开新会话，换一份审查清单即可。
 
 | 通用难度档位 | 适用任务范围 | 典型产出与验收标准 |
 | --- | --- | --- |
@@ -58,15 +85,19 @@ description: 多工作树无重叠并行派活。总协调人只拆活、查证�
 ### 路线 A 通用 `git worktree` 并行（适用所有命令行与编辑器）
 
 ```bash
-# 1. 为每条互不冲突的子线创建独立工作树与分支
-git worktree add ../wt-data -b feat/data-layer main
-git worktree add ../wt-ui   -b feat/ui-layout  main
-git worktree add ../wt-test -b feat/real-tests main
+# 0. 默认分支取 workflow.defaultBranch，没写就自动探测（下面用 BASE 代替）
+BASE=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')
+BASE=${BASE:-$(git branch --show-current)}
+
+# 1. 为每条互不冲突的子线创建独立工作树与分支（前缀取 workflow.branchPrefix，默认 feat/）
+git worktree add ../wt-data -b feat/data-layer "$BASE"
+git worktree add ../wt-ui   -b feat/ui-layout  "$BASE"
+git worktree add ../wt-test -b feat/real-tests "$BASE"
 
 # 2. 在各自工作树分别启动独立的 Agent 会话并喂入任务书
 
-# 3. 全部收齐回执后在主仓新建集成分支按顺序合入
-git checkout -b integrate/wave-1 main
+# 3. 全部收齐回执后在主仓新建集成分支按顺序合入（团队必须走评审时，改成各分支分别发合并请求）
+git checkout -b integrate/wave-1 "$BASE"
 git merge --no-ff feat/data-layer
 git merge --no-ff feat/ui-layout
 git merge --no-ff feat/real-tests
@@ -79,6 +110,8 @@ git worktree remove ../wt-test
 ```
 
 ### 路线 B Orca 多代理工作台并行
+
+只在装了 Orca（`tools.orca` 为 `true` 或自动探测到）时走这条路线；没装就用路线 A，帮手遇到问题时停下来在回执里写明问题，由你转给协调会话裁决。
 
 1. 在协调会话中先完成拆活和文件白名单切分，确保各帮手之间零文件重叠。
 2. 通过 `orca` 为每项子任务分配独立子工作树并启动对应档位模型的帮手（每个帮手自带独立上下文，避免互相污染）。

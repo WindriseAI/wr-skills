@@ -16,7 +16,7 @@ Start with these four core engineering skills, ordered from pre-build planning t
 
 | Skill | Plain-language summary |
 | --- | --- |
-| [wr-ask-first](docs/wr-ask-first/README.md) | Challenge requirement flaws and compare 10 open-source options before coding, surface leaks/contradictions/second-order risks, and resolve unknowns via a decision tree into `docs/SPEC.md` |
+| [wr-ask-first](docs/wr-ask-first/README.md) | Challenge requirement flaws and compare existing open-source options (5 by default) before coding, surface leaks/contradictions/second-order risks, and resolve unknowns via a decision tree into `docs/SPEC.md` |
 | [wr-10x-goal](docs/wr-10x-goal/README.md) | Set 10x speed (0.1x parallel wall-clock time) and 10x size-reduction targets after clarifying context, compare 10 existing solutions before building, and strictly block reward hacking (dropped features, hardcoded fakes, skipped slow paths, or weakened assertions) |
 | [wr-axiomatic-design](docs/wr-axiomatic-design/README.md) | Extract independent FRs and DPs into a design matrix, eliminate reverse coupling via reordering and a single source of truth until lower-triangular before parallel splits |
 | [wr-skeptic-audit](docs/wr-skeptic-audit/README.md) | Three physically isolated read-only reviews after merge: a no-source user audits click steps, a no-source reader audits plain copy, and a fresh engineer audits the diff against 8 checks |
@@ -35,7 +35,7 @@ Ordered strictly by workflow stage: Pre-build (`wr-ask-first`, `wr-10x-goal`, `w
 
 | Stage | Skill | What it does |
 | --- | --- | --- |
-| Pre-build | [wr-ask-first](docs/wr-ask-first/README.md) | Challenge requirement flaws and compare 10 open-source options before coding, expose leak/context/contradiction/second-order risks, and lock answers in `docs/SPEC.md` |
+| Pre-build | [wr-ask-first](docs/wr-ask-first/README.md) | Challenge requirement flaws and compare existing open-source options (5 by default) before coding, expose leak/context/contradiction/second-order risks, and lock answers in `docs/SPEC.md` |
 | Pre-build | [wr-10x-goal](docs/wr-10x-goal/README.md) | Set 10x speed and 10x size-reduction targets after clarifying context, compare 10 existing solutions before building, and lock down anti-cheat bans against dropped features, fake returns, skipped slow paths, or weakened test assertions |
 | Pre-build | [wr-axiomatic-design](docs/wr-axiomatic-design/README.md) | Extract independent FRs and DPs into a design matrix, eliminate reverse coupling via reordering and a single source of truth until lower-triangular before parallel splits |
 | Parallel Build & Guards | [wr-split-work](docs/wr-split-work/README.md) | Split parallel work across isolated `git worktree` workspaces with exclusive file lists, coordinator-only planning and verification, model routing by subscription and reasoning tier, and upfront bundle slimming |
@@ -51,16 +51,22 @@ Ordered strictly by workflow stage: Pre-build (`wr-ask-first`, `wr-10x-goal`, `w
 | [wr-sunkit](docs/wr-sunkit/README.md) | Calorie counting from meal photos, side-by-side plans from three different AIs, and an AI that argues against your assumptions |
 | [wr-geo](docs/wr-geo/README.md) | SEO and GEO audit for product sites: measure live crawler and no-JS content first, write a byte-fixed contract, and verify with an independent check script |
 
+## First-Run Setup
+
+Every Skill starts with a "step 0": it looks for `wr.config.json` (current directory upward, then `~/wr.config.json`). If there is no `"onboarded": true`, it asks eight questions in one message (machine and test environment, OS and tools, models and budget, collaboration and publishing, reply language, rigor, safety level, project type), each with a default. Reply "OK" to accept all defaults. Answers are written back to `wr.config.json` and read by both Skills and hooks. Field reference (Chinese): [examples/README.md](examples/README.md).
+
 ## Universal Hooks
 
-Four zero-dependency Node.js standard-library scripts in `hooks/`, written to the Claude Code and Antigravity hook input/output specifications plus Git `pre-commit` support, with `observe` and `enforce` modes:
+Four zero-dependency Node.js standard-library scripts in `hooks/`, written to the Claude Code and Antigravity hook input/output specifications plus Git `pre-commit` support. The Skills work in Claude Code, Codex, Cursor, Antigravity and claude.ai; the hooks currently only attach to Claude Code and Antigravity.
 
-- `hooks/safety-redline-guard.mjs`: blocks credential access, unsafe deletions outside scratch/worktree paths, destructive git resets on main checkouts, and noisy desktop actions on quiet hosts (including unpacked batch tool arguments).
-- `hooks/evidence-before-pass-gate.mjs`: tracks files actually read during a session and blocks marking `passes: true` in acceptance reports when coverage is unmapped, zero tests ran, or cited evidence was never read.
-- `hooks/speak-before-act-hook.mjs`: prompts the agent to state its plan before calling tools on a new user turn, and optionally checks outgoing responses for raw hashes or boilerplate headers.
-- `hooks/copy-and-privacy-lint.mjs`: pre-commit / CI scanner that dynamically checks for local username/path leaks plus banned copywriting patterns.
+**Hooks only log by default.** Without a config file, or before `"onboarded": true` is set, all four hooks just append hits to `.wr-hook-observe.jsonl` (add it to `.gitignore`), credentials included. After setup, the safety guard uses the `standard` profile: credential access and recursive force-deletes are always blocked, `git reset --hard` is only logged, and everything else follows `hookMode` (default `observe`).
 
-Configuration examples live in `examples/` (`wr.config.example.json`, `AGENTS.template.md`, `hooks.claude.json`, `hooks.agy.json`, `acceptance.example.json`). Verify all four hooks locally with the 22 offline dual-protocol unit tests via `node hooks/test-hooks.mjs`.
+- `hooks/safety-redline-guard.mjs`: blocks credential access; allows recursive force-deletes only inside temp directories or build-output directories inside the project (matched by whole path segment); flags destructive git resets on main checkouts. Three environment-specific rules are off by default: quiet host (`environment.quietMainMachine`), Orca long inline arguments (only when Orca is detected and the shell is PowerShell), and bare shared temp dirs on remote hosts (only when `environment.remoteHost` is set). Each rule can be set to `off` / `observe` / `enforce` under `safetyGuard.rules`.
+- `hooks/evidence-before-pass-gate.mjs`: tracks files actually read during a session and blocks marking `passes: true` in `acceptance.json` when coverage is unmapped, zero tests ran, or cited evidence was never read.
+- `hooks/speak-before-act-hook.mjs`: prompts the agent to state its plan before calling tools on a new user turn (supports the Claude Code transcript format). The Stop check only runs patterns you list in `speakBeforeAct.stopPatterns` (none by default) and respects `stop_hook_active` to avoid loops.
+- `hooks/copy-and-privacy-lint.mjs`: pre-commit / CI scanner for local username/path leaks and common secret formats, plus your own banned words and term replacements. No built-in style word lists.
+
+Configuration examples live in `examples/` (`wr.config.example.json`, `AGENTS.template.md`, `hooks.claude.json`, `hooks.agy.json`, `acceptance.example.json`). Run the offline unit tests with `node hooks/test-hooks.mjs`. They have only been run on Windows 11; macOS and Linux are untested.
 
 ## Install
 

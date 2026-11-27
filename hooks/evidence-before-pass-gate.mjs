@@ -2,8 +2,8 @@
 // 实证门禁钩子（PostToolUse 记录已读证据 + PreToolUse 校验未读/未覆盖/零用例禁标 passes: true）
 // 纯 Node.js 标准库零依赖，兼容 Claude Code 与 Antigravity，支持 observe / enforce 双模式。
 import { existsSync, readFileSync, appendFileSync, mkdirSync } from 'node:fs';
-import { join, resolve, basename } from 'node:path';
-import { tmpdir } from 'node:os';
+import { join, resolve, basename, dirname } from 'node:path';
+import { tmpdir, homedir } from 'node:os';
 
 function parseCliArgs(argv) {
   const out = {};
@@ -15,15 +15,55 @@ function parseCliArgs(argv) {
   return out;
 }
 
-function loadConfig(cwd) {
-  const cfgPath = join(cwd, 'wr.config.json');
-  if (!existsSync(cfgPath)) return {};
+// <wr-config> 配置读取与模式判定（四个钩子共用同一段，改动时四处保持一致，自测会逐字比对）
+// 查找顺序：先读用户目录 ~/wr.config.json，再从当前目录逐级往上找项目里的 wr.config.json，项目字段覆盖用户目录字段。
+// 模式优先级：命令行 --mode > 环境变量 WR_HOOK_MODE > 未完成首次对齐（onboarded 不是 true）一律 observe > 配置 hookMode > 默认 observe。
+function readJsonSafe(p) {
   try {
-    return JSON.parse(readFileSync(cfgPath, 'utf8'));
+    return JSON.parse(readFileSync(p, 'utf8'));
   } catch {
-    return {};
+    return null;
   }
 }
+function isPlainObject(v) {
+  return Boolean(v) && typeof v === 'object' && !Array.isArray(v);
+}
+function deepMerge(base, over) {
+  const out = { ...base };
+  for (const [k, v] of Object.entries(over || {})) {
+    out[k] = isPlainObject(v) && isPlainObject(out[k]) ? deepMerge(out[k], v) : v;
+  }
+  return out;
+}
+function findProjectConfig(startDir) {
+  let dir = resolve(startDir);
+  for (;;) {
+    const p = join(dir, 'wr.config.json');
+    if (existsSync(p)) return p;
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+function loadConfig(cwd, explicitPath) {
+  let userCfg = {};
+  try {
+    const p = join(homedir(), 'wr.config.json');
+    if (existsSync(p)) userCfg = readJsonSafe(p) || {};
+  } catch {
+    // 受限环境读不到用户目录时忽略
+  }
+  const projPath = explicitPath ? resolve(cwd, explicitPath) : findProjectConfig(cwd);
+  const projCfg = projPath && existsSync(projPath) ? readJsonSafe(projPath) || {} : {};
+  return deepMerge(isPlainObject(userCfg) ? userCfg : {}, isPlainObject(projCfg) ? projCfg : {});
+}
+function resolveMode(cliMode, config) {
+  const explicit = cliMode || process.env.WR_HOOK_MODE;
+  if (explicit) return { mode: String(explicit).toLowerCase(), explicit: true };
+  if (config.onboarded !== true) return { mode: 'observe', explicit: false };
+  return { mode: String(config.hookMode || 'observe').toLowerCase(), explicit: false };
+}
+// </wr-config>
 
 function parseHookInput(rawText) {
   if (!rawText || !rawText.trim()) return null;
@@ -124,7 +164,7 @@ function validateAcceptanceJson(doc, cwd, readSet) {
   const waiver = String(gate.waiverReason || '').trim();
   if (!waiver) {
     if (Array.isArray(gate.unmappedFiles) && gate.unmappedFiles.length > 0) {
-      return `实证门禁拦截：存在未映射测试的改动文件（UNMAPPED: ${gate.unmappedFiles.join(', ')}），请补齐行为测试或由负责人填写 waiverReason。`;
+      return `实证门禁拦截：存在未映射测试的改动文件（UNMAPPED: ${gate.unmappedFiles.join(', ')}），请补齐行为测试，或经用户本人确认后填写 waiverReason。`;
     }
     if (Array.isArray(gate.zeroRunSuites) && gate.zeroRunSuites.length > 0) {
       return `实证门禁拦截：存在执行 0 条用例的测试套件（ZERO_RUN: ${gate.zeroRunSuites.join(', ')}），零条用例不得报绿。`;
@@ -181,7 +221,7 @@ function main() {
 
   const cwd = cli.cwd || parsed.cwd || process.cwd();
   const config = loadConfig(cwd);
-  const mode = (cli.mode || process.env.WR_HOOK_MODE || config.hookMode || 'enforce').toLowerCase();
+  const { mode } = resolveMode(cli.mode, config);
   const phase = (cli.phase || (/post/i.test(parsed.event) ? 'post' : 'pre')).toLowerCase();
 
   if (phase === 'post') {
@@ -206,7 +246,7 @@ function main() {
 
   // PreToolUse：拦截未经核验证据就往验收单写 passes: true
   const targetNames = new Set(
-    ((config.evidenceGate && config.evidenceGate.targetFiles) || ['acceptance.json', 'batch-results.json']).map((n) =>
+    ((config.evidenceGate && config.evidenceGate.targetFiles) || ['acceptance.json']).map((n) =>
       n.toLowerCase()
     )
   );
@@ -241,7 +281,8 @@ function main() {
       : '实证门禁拦截：向验收单局部写入 passes: true 时无法核验完整证据结构，请先读取证据文件后整体更新验收单。';
 
     if (reason) {
-      if (mode === 'observe') {
+      if (mode === 'off') break;
+      if (mode !== 'enforce') {
         recordObserve(cwd, config, { file: w.path, reason });
         if (parsed.protocol === 'agy') {
           process.stdout.write(JSON.stringify({ decision: 'allow' }) + '\n');

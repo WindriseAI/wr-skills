@@ -1,14 +1,60 @@
 {
+  "onboarded": false,
   "hookMode": "observe",
   "observeLogPath": ".wr-hook-observe.jsonl",
-  "quietMainMachine": false,
+  "environment": {
+    "machine": "single",
+    "heavyTestsOnMainMachine": "ask",
+    "quietMainMachine": false,
+    "remoteHost": "",
+    "os": "",
+    "shell": "",
+    "host": ""
+  },
+  "tools": {
+    "orca": null
+  },
   "modelTiers": {
-    "tier1_architect": "your-top-reasoning-or-design-model",
-    "tier2_builder": "your-main-coding-model",
-    "tier3_reviewer": "your-second-vendor-review-model",
-    "tier4_runner": "your-fast-economical-model"
+    "tier1_architect": "",
+    "tier2_builder": "",
+    "tier3_reviewer": "",
+    "tier4_runner": ""
+  },
+  "review": {
+    "crossVendor": false
+  },
+  "budget": {
+    "mode": "normal"
+  },
+  "workflow": {
+    "team": "solo",
+    "parallel": "ask",
+    "defaultBranch": "",
+    "branchPrefix": "feat/",
+    "publishConfirm": "push-and-release"
+  },
+  "language": {
+    "output": "auto"
+  },
+  "rigor": {
+    "askFirst": "big-only",
+    "specPath": "docs/SPEC.md",
+    "openSourceSurveyCount": 5,
+    "tenX": "ask",
+    "impactCheck": "on"
+  },
+  "project": {
+    "kind": "",
+    "hasOnlineUsers": false
+  },
+  "geo": {
+    "languages": [],
+    "region": "",
+    "crawlerPolicy": ""
   },
   "safetyGuard": {
+    "profile": "standard",
+    "rules": {},
     "allowedDeleteDirs": [
       "dist",
       "build",
@@ -16,16 +62,20 @@
       ".cache",
       "worktrees"
     ],
-    "extraProtectedPatterns": []
+    "extraProtectedPatterns": [],
+    "allowPatterns": [],
+    "trashCommand": "",
+    "orcaInlineMaxChars": 120,
+    "remoteTmpSuffixes": []
   },
   "evidenceGate": {
     "targetFiles": [
-      "acceptance.json",
-      "batch-results.json"
+      "acceptance.json"
     ]
   },
   "speakBeforeAct": {
-    "checkStopResponse": true
+    "checkStopResponse": true,
+    "stopPatterns": []
   },
   "copyLint": {
     "extensions": [
@@ -45,8 +95,6 @@
       "build"
     ],
     "customBannedWords": [],
-    "termReplacements": {
-      "旧产品名示例": "请改为新产品名"
-    }
+    "termReplacements": {}
   }
 }

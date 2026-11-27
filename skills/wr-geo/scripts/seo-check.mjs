@@ -281,9 +281,27 @@ if (RB) {
     const t = read(rbFile);
     const smUrl = RB.sitemapUrl || `${ROOT}/${(cfg.sitemap && cfg.sitemap.file) || 'sitemap.xml'}`;
     ok('robots.txt 有 User-agent: * 和 Sitemap 绝对地址', /User-agent:\s*\*/i.test(t) && t.includes(`Sitemap: ${smUrl}`), t.slice(0, 200));
-    ok('robots.txt 没有拦整站', !/^\s*Disallow:\s*\/\s*$/mi.test(t), t.slice(0, 200));
-    ok('robots.txt 没有点名拦爬虫',
-      !/User-agent:\s*(GPTBot|OAI-SearchBot|ChatGPT-User|ClaudeBot|Claude-SearchBot|PerplexityBot|bingbot|Googlebot|Baiduspider|Google-Extended|Bytespider|Applebot)/i.test(t), t.slice(0, 200));
+    // 按 User-agent 分组：站点立场允许点名拦的爬虫写在 robots.allowNamedBots（例如训练类的 GPTBot、ClaudeBot、Google-Extended）
+    const allowNamed = new Set((RB.allowNamedBots || []).map((b) => String(b).toLowerCase()));
+    const groups = [];
+    let cur = null;
+    for (const line of t.split(/\r?\n/)) {
+      const ua = line.match(/^\s*User-agent:\s*(\S+)/i);
+      if (ua) {
+        if (!cur || cur.rules.length) groups.push((cur = { agents: [], rules: [] }));
+        cur.agents.push(ua[1].toLowerCase());
+      } else if (cur && /^\s*(?:Allow|Disallow):/i.test(line)) {
+        cur.rules.push(line.trim());
+      }
+    }
+    const blocksAll = (g) => g.rules.some((r) => /^Disallow:\s*\/\s*$/i.test(r));
+    const starBlocked = groups.filter((g) => g.agents.includes('*')).some(blocksAll);
+    ok('robots.txt 没有拦整站', !starBlocked, t.slice(0, 200));
+    const namedBots = ['GPTBot', 'OAI-SearchBot', 'ChatGPT-User', 'ClaudeBot', 'Claude-SearchBot', 'PerplexityBot', 'bingbot', 'Googlebot', 'Baiduspider', 'Google-Extended', 'Bytespider', 'Applebot']
+      .map((b) => b.toLowerCase())
+      .filter((b) => !allowNamed.has(b));
+    const namedHit = groups.flatMap((g) => g.agents).find((a) => namedBots.includes(a));
+    ok('robots.txt 没有点名拦爬虫', !namedHit, namedHit || t.slice(0, 200));
   }
 }
 

@@ -19,10 +19,10 @@
 
 ## 实战模型排兵布阵与工作台
 
-1. **总协调人**。有条件优先用 Fable 5.2 或 Opus 5.5（次选 Neon）。收到问题必须先向人汇报方案与做法，并同时派对应帮手去做；同时必须挂上强前置钩子（限制单轮工具调用次数或时长、拦截直接改业务代码以及不汇报就先调工具），防止协调人自己闷头看代码、既不回复也不安排任务。
-2. **总设计师**。选用 Opus 5.5（次选 Neon），所有涉及界面与设计的活统一交给 Opus 5.5，不在中途乱换模型。
-3. **其余执行、排错与分析任务**。按手头现有订阅方案，由总协调人结合模型特点和不同思考强度拆开派给各自最拿手的模型。
-4. **工作台推荐开源 Orca**。支持 Claude 多账号与反重力多账号独立目录隔离不封号，内置常驻 Bot 可以平替 Grok Bot，并且可以自由挑选各家模型。
+1. **总协调人**。用你手上最强的推理档模型（`tier1_architect`）。收到问题先向人汇报方案与做法，再派对应帮手去做。建议挂前置钩子防止协调人闷头看代码不回复：本仓库带了「先应声再动手」（`hooks/speak-before-act-hook.mjs`）；「限制单轮工具调用次数或时长」「拦截协调人直接改业务代码」这两类钩子没有随包提供，需要时按 `wr-hook-forge` 自己写。
+2. **总设计师**。界面与设计类的活固定交给同一档模型（通常也是最强推理档），不在中途换模型。
+3. **其余执行、排错与分析任务**。按手头现有订阅方案，由总协调人结合模型特点和不同思考强度拆开派给各自最拿手的档位；只有一个模型时就是单模型模式，不分档。
+4. **工作台可选**。多代理工作台（例如开源的 Orca）能省去手动开窗口和转述的功夫，没有也能用纯 `git worktree` 路线完成全部流程。
 
 ## 核心机制
 
@@ -34,15 +34,15 @@
 
 ## 配置示例
 
-在项目根目录放置 `wr.config.json`（完整模板见 [examples/wr.config.example.json](../../examples/wr.config.example.json)），按你手头的账号自定义下面这四档模型。
+第一次启用技能时会先做首次对齐，把答案写进项目根目录的 `wr.config.json`（完整模板见 [examples/wr.config.example.json](../../examples/wr.config.example.json)，字段说明见 [examples/README.md](../../examples/README.md)）。四档模型按你手头的账号填写，全部留空就是单模型模式。
 
 ```json
 {
   "modelTiers": {
-    "tier1_architect": "your-top-reasoning-or-design-model",
-    "tier2_builder": "your-main-coding-model",
-    "tier3_reviewer": "your-second-vendor-review-model",
-    "tier4_runner": "your-fast-economical-model"
+    "tier1_architect": "最强推理档，例如你订阅里最贵的那个模型",
+    "tier2_builder": "主力编码档",
+    "tier3_reviewer": "独立复核档，有第二家厂商就填那家的",
+    "tier4_runner": "快速经济档"
   }
 }
 ```

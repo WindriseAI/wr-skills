@@ -31,7 +31,7 @@
     },
     {
       "name": "wr-ask-first",
-      "description": "动手前先挑刺并问清需求。搜齐十个现成开源方案对比体积与协议，当面指出泄密与逻辑矛盾隐患，再用决策树分轮追问并写入 docs/SPEC.md。",
+      "description": "动手前先挑刺并问清需求。搜一批现成开源方案（默认 5 个）对比体积与协议，当面指出泄密与逻辑矛盾隐患，再用决策树分轮追问并写入 docs/SPEC.md。",
       "source": "./",
       "strict": false,
       "version": "1.0.0",

@@ -2,3 +2,5 @@
 Thumbs.db
 *.zip
 __pycache__/
+.wr-hook-observe.jsonl
+wr.config.json
