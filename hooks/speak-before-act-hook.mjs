@@ -46,11 +46,16 @@ function loadConfig(cwd, explicitPath) {
   }
   const projPath = explicitPath ? resolve(cwd, explicitPath) : findProjectConfig(cwd);
   const projCfg = projPath && existsSync(projPath) ? readJsonSafe(projPath) || {} : {};
-  return deepMerge(isPlainObject(userCfg) ? userCfg : {}, isPlainObject(projCfg) ? projCfg : {});
+  const user = isPlainObject(userCfg) ? userCfg : {};
+  const project = isPlainObject(projCfg) ? projCfg : {};
+  const merged = deepMerge(user, project);
+  // 两条安全红线只认用户目录那份配置能放宽，这里把两份来源单独留着
+  Object.defineProperty(merged, '__sources', { value: { user, project }, enumerable: false });
+  return merged;
 }
 function resolveMode(cliMode, config) {
-  const explicit = cliMode || process.env.WR_HOOK_MODE;
-  if (explicit) return { mode: String(explicit).toLowerCase(), explicit: true };
+  if (cliMode) return { mode: String(cliMode).toLowerCase(), explicit: true, source: 'cli' };
+  if (process.env.WR_HOOK_MODE) return { mode: String(process.env.WR_HOOK_MODE).toLowerCase(), explicit: true, source: 'env' };
   if (config.onboarded !== true) return { mode: 'observe', explicit: false };
   return { mode: String(config.hookMode || 'observe').toLowerCase(), explicit: false };
 }
@@ -62,7 +67,7 @@ function pickLang(config) {
 function tr(lang, zh, en) {
   return lang === 'en' ? en : zh;
 }
-// 观察日志默认脱敏：路径只留最后一段，命令只留程序名和不带值的开关；observeLogDetail 写 full 才记完整内容
+// 观察日志默认脱敏：路径只留最后一段；命令只留程序名、单字母开关和不带值的长开关，NAME=值 只留 NAME=…；observeLogDetail 写 full 才记完整内容
 function logFull(config) {
   return String(config.observeLogDetail || '').toLowerCase() === 'full';
 }
@@ -71,10 +76,30 @@ function redactPath(p) {
   return parts.length > 1 ? '…/' + parts[parts.length - 1] : String(p || '');
 }
 function redactCommand(c) {
-  const tokens = String(c || '').trim().split(/\s+/).filter(Boolean);
-  if (!tokens.length) return '';
-  const kept = [redactPath(tokens[0]), ...tokens.slice(1).filter((t) => /^-{1,2}[A-Za-z][\w-]*$/.test(t))];
-  return kept.join(' ') + ' …';
+  const kept = [];
+  let expectProgram = true;
+  for (const raw of String(c || '').trim().split(/\s+/).filter(Boolean)) {
+    if (/^(?:&&|\|\||\||;)$/.test(raw)) {
+      kept.push(raw);
+      expectProgram = true;
+      continue;
+    }
+    const t = raw.replace(/^["'`(]+|["'`);]+$/g, '');
+    const env = t.match(/^([A-Za-z_][A-Za-z0-9_]*)=/);
+    if (env) {
+      kept.push(env[1] + '=…');
+    } else if (expectProgram) {
+      if (t) kept.push(redactPath(t));
+      expectProgram = false;
+    } else if (/^-[A-Za-z]$/.test(t) || /^--[A-Za-z][\w-]*$/.test(t)) {
+      kept.push(t);
+    }
+    if (/;$/.test(raw)) {
+      kept.push(';');
+      expectProgram = true;
+    }
+  }
+  return kept.length ? kept.join(' ') + ' …' : '';
 }
 function redactQuoted(text) {
   return String(text || '').replace(/"([^"]*)"/g, (m, inner) => `"${redactPath(inner)}"`);

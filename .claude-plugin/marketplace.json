@@ -10,16 +10,6 @@
   },
   "plugins": [
     {
-      "name": "wr-sunkit",
-      "description": "拍照算饮食热量、三家 AI 出方案对比、让 AI 专门挑刺反对你。",
-      "source": "./",
-      "strict": false,
-      "version": "1.0.0",
-      "category": "productivity",
-      "keywords": ["diet", "calorie", "decision", "devil-advocate", "chinese"],
-      "skills": ["./skills/wr-sunkit"]
-    },
-    {
       "name": "wr-geo",
       "description": "官网上线前后的搜索引擎与 AI 收录体检，先实测线上内容与爬虫状态，再写逐字契约并由独立检查脚本验收。",
       "source": "./",
@@ -108,6 +98,16 @@
       "category": "design",
       "keywords": ["ux", "motion", "interaction", "responsive", "chinese"],
       "skills": ["./skills/wr-ux-craft"]
+    },
+    {
+      "name": "wr-sunkit",
+      "description": "拍照算饮食热量、三家 AI 出方案对比、让 AI 专门挑刺反对你。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "productivity",
+      "keywords": ["diet", "calorie", "decision", "devil-advocate", "chinese"],
+      "skills": ["./skills/wr-sunkit"]
     },
     {
       "name": "wr-engineering",

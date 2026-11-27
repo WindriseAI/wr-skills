@@ -2,7 +2,7 @@
 // 通用安全红线守卫（PreToolUse）
 // 纯 Node.js 标准库零依赖，同时兼容 Claude Code 与 Antigravity 钩子协议，支持 observe / enforce 双模式，每条规则可单独设 off / observe / enforce。
 import { existsSync, readFileSync, appendFileSync, statSync } from 'node:fs';
-import { join, resolve, dirname, relative, isAbsolute } from 'node:path';
+import { join, resolve, dirname, relative, isAbsolute, posix as posixPath } from 'node:path';
 import { tmpdir, homedir } from 'node:os';
 
 // <wr-config> 配置读取、模式判定、提示语言与日志脱敏（四个钩子共用同一段，改动时四处保持一致，自测会逐字比对）
@@ -45,11 +45,16 @@ function loadConfig(cwd, explicitPath) {
   }
   const projPath = explicitPath ? resolve(cwd, explicitPath) : findProjectConfig(cwd);
   const projCfg = projPath && existsSync(projPath) ? readJsonSafe(projPath) || {} : {};
-  return deepMerge(isPlainObject(userCfg) ? userCfg : {}, isPlainObject(projCfg) ? projCfg : {});
+  const user = isPlainObject(userCfg) ? userCfg : {};
+  const project = isPlainObject(projCfg) ? projCfg : {};
+  const merged = deepMerge(user, project);
+  // 两条安全红线只认用户目录那份配置能放宽，这里把两份来源单独留着
+  Object.defineProperty(merged, '__sources', { value: { user, project }, enumerable: false });
+  return merged;
 }
 function resolveMode(cliMode, config) {
-  const explicit = cliMode || process.env.WR_HOOK_MODE;
-  if (explicit) return { mode: String(explicit).toLowerCase(), explicit: true };
+  if (cliMode) return { mode: String(cliMode).toLowerCase(), explicit: true, source: 'cli' };
+  if (process.env.WR_HOOK_MODE) return { mode: String(process.env.WR_HOOK_MODE).toLowerCase(), explicit: true, source: 'env' };
   if (config.onboarded !== true) return { mode: 'observe', explicit: false };
   return { mode: String(config.hookMode || 'observe').toLowerCase(), explicit: false };
 }
@@ -61,7 +66,7 @@ function pickLang(config) {
 function tr(lang, zh, en) {
   return lang === 'en' ? en : zh;
 }
-// 观察日志默认脱敏：路径只留最后一段，命令只留程序名和不带值的开关；observeLogDetail 写 full 才记完整内容
+// 观察日志默认脱敏：路径只留最后一段；命令只留程序名、单字母开关和不带值的长开关，NAME=值 只留 NAME=…；observeLogDetail 写 full 才记完整内容
 function logFull(config) {
   return String(config.observeLogDetail || '').toLowerCase() === 'full';
 }
@@ -70,10 +75,30 @@ function redactPath(p) {
   return parts.length > 1 ? '…/' + parts[parts.length - 1] : String(p || '');
 }
 function redactCommand(c) {
-  const tokens = String(c || '').trim().split(/\s+/).filter(Boolean);
-  if (!tokens.length) return '';
-  const kept = [redactPath(tokens[0]), ...tokens.slice(1).filter((t) => /^-{1,2}[A-Za-z][\w-]*$/.test(t))];
-  return kept.join(' ') + ' …';
+  const kept = [];
+  let expectProgram = true;
+  for (const raw of String(c || '').trim().split(/\s+/).filter(Boolean)) {
+    if (/^(?:&&|\|\||\||;)$/.test(raw)) {
+      kept.push(raw);
+      expectProgram = true;
+      continue;
+    }
+    const t = raw.replace(/^["'`(]+|["'`);]+$/g, '');
+    const env = t.match(/^([A-Za-z_][A-Za-z0-9_]*)=/);
+    if (env) {
+      kept.push(env[1] + '=…');
+    } else if (expectProgram) {
+      if (t) kept.push(redactPath(t));
+      expectProgram = false;
+    } else if (/^-[A-Za-z]$/.test(t) || /^--[A-Za-z][\w-]*$/.test(t)) {
+      kept.push(t);
+    }
+    if (/;$/.test(raw)) {
+      kept.push(';');
+      expectProgram = true;
+    }
+  }
+  return kept.length ? kept.join(' ') + ' …' : '';
 }
 function redactQuoted(text) {
   return String(text || '').replace(/"([^"]*)"/g, (m, inner) => `"${redactPath(inner)}"`);
@@ -125,7 +150,7 @@ function collectAtoms(node, paths, commands) {
     }
     return;
   }
-  const pathKeys = new Set(['path', 'file_path', 'filepath', 'targetfile', 'target', 'file', 'cwd']);
+  const pathKeys = new Set(['path', 'file_path', 'filepath', 'targetfile', 'target', 'file', 'cwd', 'glob', 'notebook_path']);
   const cmdKeys = new Set(['command', 'commandline', 'cmd', 'script']);
   for (const [k, v] of Object.entries(node)) {
     const lk = k.toLowerCase();
@@ -157,6 +182,10 @@ const PROFILES = {
   strict: { credentials: 'enforce', hardDelete: 'enforce', gitReset: 'enforce', quietHost: 'enforce', orcaQuote: 'enforce', remoteTmp: 'enforce' }
 };
 const RED_LINES = new Set(['credentials', 'hardDelete']);
+const DEFAULT_ALLOWED_DELETE_DIRS = [
+  'dist', 'build', 'out', 'coverage', 'node_modules', '.cache', '.next', '.nuxt', '.turbo',
+  '.parcel-cache', 'target', '__pycache__', '.pytest_cache', 'worktrees'
+];
 const VALID_RULE_MODES = new Set(['off', 'observe', 'enforce', 'follow']);
 
 function ruleOverride(name, config) {
@@ -165,7 +194,48 @@ function ruleOverride(name, config) {
   return VALID_RULE_MODES.has(v) ? v : '';
 }
 
+function sourcesOf(config) {
+  const s = config.__sources || {};
+  return { user: isPlainObject(s.user) ? s.user : {}, project: isPlainObject(s.project) ? s.project : {} };
+}
+
+// 两条红线（凭据、递归强删）的模式只认三个来源：钩子命令行里的 --mode（用户自己写在钩子设置里）、
+// 用户目录 ~/wr.config.json 里的 safetyGuard.rules / profile / hookMode。
+// 项目里的 wr.config.json 和环境变量 WR_HOOK_MODE 只能收紧不能放宽，克隆来的陌生仓库关不掉它们。
+function redLineMode(name, modeInfo, config) {
+  if (modeInfo.explicit && modeInfo.source === 'cli') {
+    return modeInfo.mode === 'off' || modeInfo.mode === 'observe' ? modeInfo.mode : 'enforce';
+  }
+  const { user } = sourcesOf(config);
+  const sg = isPlainObject(user.safetyGuard) ? user.safetyGuard : {};
+  const v = sg.rules && typeof sg.rules[name] === 'string' ? sg.rules[name].toLowerCase() : '';
+  if (v === 'off' || v === 'observe' || v === 'enforce') return v;
+  if (user.onboarded === true) {
+    const userMode = String(user.hookMode || 'observe').toLowerCase();
+    if (userMode === 'off') return 'off';
+    if (v === 'follow' || String(sg.profile || '').toLowerCase() === 'relaxed') return userMode === 'enforce' ? 'enforce' : 'observe';
+  }
+  return 'enforce';
+}
+
+// 项目配置里有没有想放宽红线的写法（命中红线时用来提醒「已忽略」）
+function projectTriedToRelax(config) {
+  const { project } = sourcesOf(config);
+  const sg = isPlainObject(project.safetyGuard) ? project.safetyGuard : {};
+  const rules = isPlainObject(sg.rules) ? sg.rules : {};
+  const relaxing = (v) => ['off', 'observe', 'follow'].includes(String(v || '').toLowerCase());
+  return (
+    relaxing(rules.credentials) ||
+    relaxing(rules.hardDelete) ||
+    String(sg.profile || '').toLowerCase() === 'relaxed' ||
+    String(project.hookMode || '').toLowerCase() === 'off' ||
+    (Array.isArray(sg.allowPatterns) && sg.allowPatterns.length > 0) ||
+    Array.isArray(sg.allowedDeleteDirs)
+  );
+}
+
 function ruleMode(name, modeInfo, config) {
+  if (RED_LINES.has(name)) return redLineMode(name, modeInfo, config);
   if (modeInfo.mode === 'off') return 'off';
   const sg = config.safetyGuard || {};
   const override = ruleOverride(name, config);
@@ -208,7 +278,19 @@ const CRED_FILE_RE = new RegExp(
   `(?:^|\\/)(?:${FILE_AUTH.replace('.', '\\.')}|\\${FILE_NETRC}|\\${FILE_ENV}(?:\\.[^/\\s"']+)?)$`,
   'i'
 );
-const CRED_EXT_RE = new RegExp(`\\.(?:${CRED_EXTS.join('|')})(?:$|["'\\s])`, 'i');
+const CRED_EXT_RE = new RegExp(`\\.(?:${CRED_EXTS.join('|')})(?:\\.(?:bak|old|orig|backup|save|copy))?(?:$|["'\\s])`, 'i');
+// 常见的凭据文件名：包管理器令牌、git 凭据、私钥（含备份）
+const CRED_NAME_RE = new RegExp(
+  '(?:^|\\/)(?:' +
+    [
+      ['.', 'n', 'p', 'm', 'r', 'c'].join('').replace('.', '\\.'),
+      ['.', 'p', 'y', 'p', 'i', 'r', 'c'].join('').replace('.', '\\.'),
+      ['.', 'g', 'i', 't', '-', 'c', 'r', 'e', 'd', 'e', 'n', 't', 'i', 'a', 'l', 's'].join('').replace('.', '\\.'),
+      ['i', 'd', '_', '(?:rsa|dsa|ecdsa|ed25519)'].join('') + '(?!\\.pub$)[^/]*'
+    ].join('|') +
+    ')$',
+  'i'
+);
 
 function safeRegExps(list) {
   const out = [];
@@ -222,15 +304,25 @@ function safeRegExps(list) {
   return out;
 }
 
-function isCredentialTarget(text, allowRes) {
-  const norm = String(text || '').replace(/\\/g, '/').trim();
-  if (!norm) return false;
+function credentialHit(norm) {
+  if (CRED_DIR_RE.test(norm)) return true; // 凭据目录优先，不被「源码里的 keys 目录」豁免
   if (ENV_ALLOW_RE.test(norm)) return false;
   if (NORMAL_KEY_DIR_RE.test(norm)) return false;
+  return CRED_FILE_RE.test(norm) || CRED_EXT_RE.test(norm) || CRED_NAME_RE.test(norm);
+}
+
+function isCredentialTarget(text, allowRes) {
+  const raw = String(text || '').replace(/\\/g, '/').trim();
+  if (!raw) return false;
+  // 先归一化 a/../b 这类写法，再判断
+  const norm = posixPath.normalize(raw);
   if (allowRes.some((re) => re.test(norm))) return false;
-  if (CRED_DIR_RE.test(norm)) return true;
-  if (CRED_FILE_RE.test(norm)) return true;
-  if (CRED_EXT_RE.test(norm)) return true;
+  if (credentialHit(norm)) return true;
+  // 通配符写法（.env*、**/.env、*.pem）：去掉通配符后再判断一次
+  if (/[*?]/.test(norm)) {
+    const stripped = norm.replace(/\*\*\/?/g, '').replace(/[*?]/g, '');
+    if (stripped && credentialHit(stripped)) return true;
+  }
   return false;
 }
 
@@ -258,13 +350,27 @@ function findHardDeleteTargets(sub) {
   const s = String(sub || '').trim();
   if (!s) return null;
 
-  const rmSync = s.match(/\bfs\.rmsync\s*\(([^)]*)/i);
-  if (rmSync) {
-    const lit = rmSync[1].match(/^\s*(["'`])([^"'`]*)\1/);
+  // 脚本里的递归删除：Node 的 fs.rm / rmSync、Python 的 shutil.rmtree、rimraf
+  const scriptDel = s.match(/(?:\bfs(?:\.promises)?\.rm(?:Sync)?|\brmSync|\bshutil\.rmtree|\brimraf(?:\.sync)?)\s*\(([^)]*)/i);
+  if (scriptDel) {
+    const lit = scriptDel[1].match(/^\s*(["'`])([^"'`]*)\1/);
     return [lit ? lit[2] : ''];
   }
 
-  const rm = s.match(/(?:^|[\s"'(])rm\s+(.+)$/i);
+  // find … -delete 或 find … -exec rm：删除目标按 find 的起始目录算
+  const find = s.match(/(?:^|[^\w.-])find(?:\.exe)?\s+(.+)$/i);
+  if (find && /(?:^|\s)-delete\b|-exec(?:dir)?\s+\S*rm\b/i.test(find[1])) {
+    const tokens = tokenize(find[1]).map(cleanToken).filter(Boolean);
+    const starts = [];
+    for (const t of tokens) {
+      if (/^[-(!]/.test(t)) break;
+      starts.push(t);
+    }
+    return starts.length ? starts : ['.'];
+  }
+
+  // 命令名按基名识别：rm、/bin/rm、\rm、rm.exe 都算
+  const rm = s.match(/(?:^|[^\w.-])rm(?:\.exe)?\s+(.+)$/i);
   if (rm) {
     const tokens = tokenize(rm[1]).map(cleanToken).filter(Boolean);
     const flags = tokens.filter((t) => t.startsWith('-'));
@@ -321,15 +427,22 @@ function isInside(child, parent) {
 function isAllowedDeleteTarget(rawTarget, cwd, allowedDirs) {
   const t = cleanToken(rawTarget);
   if (!t) return false;
-  if (TMP_VAR_RE.test(t)) return true;
-  if (/[$%]/.test(t)) return false; // 解析不了的变量，按不放行处理
-  const abs = resolve(cwd, expandHome(t));
   const sysTmp = resolve(tmpdir());
+  // 临时目录变量开头的（$TMPDIR/x、%TEMP%\x）：换成真实临时目录后再归一化，$TMPDIR/../.. 这类穿越不放行
+  const tmpVar = t.match(TMP_VAR_RE);
+  const expanded = tmpVar ? join(sysTmp, t.slice(tmpVar[0].length)) : t;
+  if (!tmpVar && /[$%]/.test(t)) return false; // 解析不了的变量，按不放行处理
+  const abs = resolve(cwd, expandHome(expanded));
   if (abs !== sysTmp && isInside(abs, sysTmp)) return true;
-  if (segmentsOf(abs).some((s) => s === 'tmp' || s === 'temp')) return true;
+  if (tmpVar) return false;
+  // 根目录下的临时目录：/tmp、/var/tmp、盘符根下的 tmp 或 temp
+  const absSegs = segmentsOf(abs.replace(/^[A-Za-z]:/, ''));
+  if (absSegs.length > 1 && (absSegs[0] === 'tmp' || absSegs[0] === 'temp' || (absSegs[0] === 'var' && absSegs[1] === 'tmp' && absSegs.length > 2))) return true;
   const root = resolve(cwd);
   if (abs === root || !isInside(abs, root)) return false;
   const relSegs = segmentsOf(relative(root, abs));
+  // 项目里叫 tmp 或 temp 的目录
+  if (relSegs.some((s) => s === 'tmp' || s === 'temp')) return true;
   for (const dir of allowedDirs) {
     const ds = segmentsOf(dir);
     if (!ds.length) continue;
@@ -454,11 +567,14 @@ function checkRemoteBareTempDir(cmd, hosts, suffixes, lang) {
   return null;
 }
 
-function checkViolations(paths, commands, cwd, config, lang) {
+function checkViolations(paths, commands, cwd, config, lang, toolName = '') {
   const sg = config.safetyGuard || {};
   const extraRes = safeRegExps(sg.extraProtectedPatterns);
-  const allowRes = safeRegExps(sg.allowPatterns);
-  const allowedDirs = Array.isArray(sg.allowedDeleteDirs) ? sg.allowedDeleteDirs : ['dist', 'build', 'node_modules', '.cache', 'worktrees'];
+  // 放宽两条红线的白名单只认用户目录那份配置；项目里写了也忽略
+  const userSgRaw = sourcesOf(config).user.safetyGuard;
+  const userSg = isPlainObject(userSgRaw) ? userSgRaw : {};
+  const allowRes = safeRegExps(userSg.allowPatterns);
+  const allowedDirs = Array.isArray(userSg.allowedDeleteDirs) ? userSg.allowedDeleteDirs : DEFAULT_ALLOWED_DELETE_DIRS;
   const env = config.environment || {};
   const quietHost =
     process.env.WR_QUIET_HOST === '1' ||
@@ -481,6 +597,19 @@ function checkViolations(paths, commands, cwd, config, lang) {
   };
 
   // 规则 1：凭据零触碰
+  // 用户目录的 wr.config.json 是唯一能放宽红线的地方，不让 AI 用写文件工具改它
+  const userCfgPath = resolve(homedir(), 'wr.config.json');
+  if (/write|edit|create|replace|patch/i.test(toolName)) {
+    for (const p of paths) {
+      if (resolve(cwd, expandHome(String(p))) === userCfgPath) {
+        add('credentials', tr(
+          lang,
+          '红线拦截（守卫配置保护）：用户目录的 wr.config.json 能放宽安全红线，只能由用户本人修改。请把要改的内容告诉用户，让用户自己改。',
+          'Blocked (guard config): ~/wr.config.json can relax the safety red lines, so only the user may edit it. Tell the user what to change instead.'
+        ));
+      }
+    }
+  }
   for (const p of paths) {
     if (isCredentialTarget(p, allowRes)) {
       add('credentials', tr(
@@ -612,10 +741,25 @@ function main() {
   const paths = [];
   const commands = [];
   collectAtoms(parsed.args, paths, commands);
+  // Glob 这类工具的 pattern 参数就是路径模式
+  if (/glob/i.test(parsed.toolName) && parsed.args && typeof parsed.args.pattern === 'string') paths.push(parsed.args.pattern);
 
-  const hits = checkViolations(paths, commands, cwd, config, lang)
-    .map((h) => ({ ...h, mode: ruleMode(h.rule, modeInfo, config) }))
-    .filter((h) => h.mode !== 'off');
+  const allHits = checkViolations(paths, commands, cwd, config, lang, parsed.toolName).map((h) => ({ ...h, mode: ruleMode(h.rule, modeInfo, config) }));
+
+  // 红线被用户目录配置放宽时，放行之余给一句提醒；项目配置想放宽红线时，拦截原因里说明已忽略
+  const relaxedRed = allHits.filter((h) => RED_LINES.has(h.rule) && h.mode !== 'enforce');
+  if (relaxedRed.length) {
+    process.stderr.write(tr(
+      lang,
+      `提醒：安全红线（${relaxedRed.map((h) => h.rule).join('、')}）已被用户目录的 wr.config.json 或钩子命令行放宽，本次没有拦截。\n`,
+      `Notice: safety red line (${relaxedRed.map((h) => h.rule).join(', ')}) is relaxed by ~/wr.config.json or the hook command line, so this call was not blocked.\n`
+    ));
+  }
+  const ignoredNote = projectTriedToRelax(config)
+    ? tr(lang, '（项目里的 wr.config.json 想放宽这条红线，已忽略；只有用户目录 ~/wr.config.json 能放宽。）', ' (The project wr.config.json tries to relax this red line and was ignored; only ~/wr.config.json can relax it.)')
+    : '';
+
+  const hits = allHits.filter((h) => h.mode !== 'off').map((h) => (RED_LINES.has(h.rule) && h.mode === 'enforce' ? { ...h, reason: h.reason + ignoredNote } : h));
 
   const observed = hits.filter((h) => h.mode !== 'enforce');
   const enforced = hits.filter((h) => h.mode === 'enforce');

@@ -4,7 +4,7 @@
 
 > 改动全覆盖真路径验收。跑前做改动文件到行为测试的覆盖映射（硬禁 `UNMAPPED` 与 `ZERO_RUN`），用反向改写业务的突变探针抓假绿水测试，用 `getBoundingClientRect` 扫像素裁切与遮挡，连败两次立即熔断查根因。
 
-**支持 Claude Code、Codex、Cursor、Antigravity、claude.ai，以及其他支持 Skills 的 Agent。** 用的 AI 不支持 Skill，也可以直接复制 [提示词清单](提示词清单.md)。
+**按 Skills 通用格式编写，可用于 Claude Code、Codex、Cursor、Antigravity、claude.ai 等支持 Skills 的 Agent**（各家没有逐一实测）。 用的 AI 不支持 Skill，也可以直接复制 [提示词清单](提示词清单.md)。
 
 [为什么绿灯常常是假的](#为什么绿灯常常是假的) · [四道硬门禁](#四道硬门禁) · [配套钩子](#配套钩子) · [安装](#安装) · [SKILL.md 原文](../../skills/wr-real-qa/SKILL.md)
 
@@ -47,4 +47,4 @@ npx -y skills add WindriseAI/wr-skills -g --all
 
 ## 授权
 
-[CC BY-NC 4.0](../../LICENSE)。个人和团队可以免费使用（包括在公司里用来做自己的工作和项目），可以修改，转载分享时注明作者 Windrise AI 与仓库链接；不可以把这些内容本身拿去卖，例如放进付费课程、训练营、付费资料包或收费产品。拿不准算不算商用，提 [Issue](https://github.com/WindriseAI/wr-skills/issues) 问。本仓库是唯一来源，其他地方的副本以这里为准。
+[CC BY-NC 4.0](../../LICENSE)，转载、修改、分享时注明作者 Windrise AI 与仓库链接。作者额外授权：个人和团队在自己的工作中使用（包括在公司里开发自己的软件）不算商业用途，可以免费用；仍然不可以把这些内容本身拿去卖，例如转售、放进付费课程、训练营、付费资料包或收费产品。拿不准算不算商用，提 [Issue](https://github.com/WindriseAI/wr-skills/issues) 问。本仓库是唯一来源，其他地方的副本以这里为准。

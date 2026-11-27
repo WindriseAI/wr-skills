@@ -9,7 +9,7 @@
 [![Hooks](https://img.shields.io/badge/hooks-4-0F766E.svg?style=flat-square)](#通用钩子脚本)
 [![中文](https://img.shields.io/badge/语言-中文-B4532A.svg?style=flat-square)](#)
 
-**支持 Claude Code、Codex、Cursor、Antigravity（反重力）、claude.ai，以及其他支持 Skills 的 Agent。** 每个 Skill 都附一份独立提示词清单，用的 AI 不支持 Skill 也能直接复制。
+**按 Skills 通用格式编写，可用于 Claude Code、Codex、Cursor、Antigravity（反重力）、claude.ai 等支持 Skills 的 Agent**（各家没有逐一实测）。每个 Skill 都附一份独立提示词清单，用的 AI 不支持 Skill 也能直接复制。
 
 [四个核心推荐技能](#四个核心推荐技能) · [Skills 一览](#skills-一览) · [首次对齐](#首次对齐) · [通用钩子脚本](#通用钩子脚本) · [安装](#安装) · [仓库结构](#仓库结构) · [授权](#授权) · [更新记录](https://github.com/WindriseAI/wr-skills/commits/main)
 
@@ -104,7 +104,11 @@ npx -y skills add WindriseAI/wr-skills -g --skill wr-ask-first wr-10x-goal wr-ax
 
 文档里写十遍感叹号，上下文一长 AI 照样漏看。`hooks/` 目录提供 4 个纯 Node.js 标准库编写、零第三方依赖的确定性脚本，按 Claude Code 与 Antigravity 钩子输入输出格式编写并支持 Git `pre-commit`。技能本身在 Claude Code、Codex、Cursor、Antigravity、claude.ai 都能用；钩子目前只能挂在 Claude Code 和 Antigravity 上。
 
-**装上就守住两条红线，其余先只记录。** 没有配置文件、或配置里还没有 `"onboarded": true` 时，碰凭据文件和递归强删（临时目录和项目内构建产物除外）直接拦；其余规则只把命中写进 `.wr-hook-observe.jsonl`（记得加进 `.gitignore`）。做完首次对齐后，安全守卫按标准档执行：凭据和递归强删照样拦，git 硬重置只记录，其余跟随 `hookMode`（默认 `observe`）。想全部硬拦就把 `hookMode` 改成 `"enforce"`。
+**装上就守两条红线，其余先只记录。** 没有配置文件、或配置里还没有 `"onboarded": true` 时，安全守卫对「碰凭据文件」和「递归强删」（临时目录和项目内构建产物除外）的常见写法直接拦；其余规则只把命中写进 `.wr-hook-observe.jsonl`（记得加进 `.gitignore`）。做完首次对齐后，安全守卫按标准档执行：凭据和递归强删照样拦，git 硬重置只记录，其余跟随 `hookMode`（默认 `observe`）。想全部硬拦就把 `hookMode` 改成 `"enforce"`。
+
+**谁能放宽这两条红线**：只有用户目录的 `~/wr.config.json`（`safetyGuard.rules`、`profile`、`allowPatterns`、`allowedDeleteDirs`、`hookMode`）和你写在钩子设置里的 `--mode`。项目里的 `wr.config.json` 和环境变量 `WR_HOOK_MODE` 只能收紧不能放宽，所以克隆来的陌生仓库带的配置文件关不掉它们；AI 用写文件工具改 `~/wr.config.json` 也会被拦。红线被放宽时，每次放行都会提醒一句。
+
+**它拦得住什么、拦不住什么**：守卫检查工具参数里的路径（包括 Grep、Glob 的通配参数）和命令里出现的词。能拦：读写 `.env`、`~/.ssh`、`~/.aws`、`~/.gnupg`、`.netrc`、`.npmrc`、`.git-credentials`、私钥和证书文件（含 `.bak` 备份）这类写法，以及 `rm -rf`、`/bin/rm`、`Remove-Item -Recurse`、`del /s`、`rd /s`、`find … -delete`、脚本里写死路径的 `fs.rm` / `rmSync` / `shutil.rmtree` / `rimraf`。拦不住：命令里靠通配符展开才出现的路径（`cat .e*`）、递归搜索文件内容（`grep -r API_KEY .`）、用变量拼出来的路径、脚本里没写死路径的删除、改了名或套了别名的命令、宿主自带的权限放行。**它是对常见写法的尽力拦截，不是安全边界**；真要保护，同时配下面的权限拒绝表和操作系统权限（文件权限、单独账户或容器）。
 
 | 脚本 | 触发时机 | 干什么用 |
 | --- | --- | --- |
@@ -126,10 +130,10 @@ npx -y skills add WindriseAI/wr-skills -g --skill wr-ask-first wr-10x-goal wr-ax
 | `tools.orca` | 自动探测 | 探测到 Orca 且终端是 PowerShell 时，才检查 orca 命令的长内联参数 |
 | `language.output` | `auto` | 写 `en` 时钩子提示改用英文，其余用中文 |
 | `observeLogDetail` | `redacted` | 观察日志默认只记规则名、路径最后一段和命令名；写 `full` 才记完整命令和路径 |
-| `WR_HOOK_MODE` | 空 | 环境变量，临时指定所有钩子的模式 |
+| `WR_HOOK_MODE` | 空 | 环境变量，临时指定钩子的模式；只能收紧两条红线，不能放宽 |
 | `WR_QUIET_HOST=1` / `WR_TEST_RUNNER=1` | 空 | 临时打开本机静音；静音时放行某一条你同意在本机跑的重型测试 |
 
-**挂到 Claude Code**：把 [examples/hooks.claude.json](examples/hooks.claude.json) 里的 `hooks` 段并进项目的 `.claude/settings.json`。示例用 `node "${CLAUDE_PROJECT_DIR}/hooks/<脚本>.mjs"` 定位脚本，AI 切到子目录或 worktree 时也能找到；Windows 上 Claude Code 默认用 Git Bash 跑钩子命令，没装 Git Bash 时改用 PowerShell，并会自动把 `${CLAUDE_PROJECT_DIR}` 换成 PowerShell 写法，两种情况这一行都能直接用。想装成对所有项目生效的全局钩子，把 `hooks/` 放到固定目录，命令里写它的绝对路径，例如 `node "/Users/<你>/wr-hooks/safety-redline-guard.mjs"`（Windows 写 `node "C:/Users/<你>/wr-hooks/safety-redline-guard.mjs"`）。Antigravity 的示例在 [examples/hooks.agy.json](examples/hooks.agy.json)，用的是相对项目根目录的路径。
+**挂到 Claude Code**：把 [examples/hooks.claude.json](examples/hooks.claude.json) 里的 `hooks` 段并进项目的 `.claude/settings.json`。示例用的是 Claude Code 官方文档给的 `node "${CLAUDE_PROJECT_DIR}/hooks/<脚本>.mjs"` 写法，AI 切到子目录或 worktree 时也能找到脚本。我们只在 Windows 上用 Git Bash 的环境核对过；如果你那边钩子报「找不到脚本」，直接把 `${CLAUDE_PROJECT_DIR}` 换成项目的绝对路径。想装成对所有项目生效的全局钩子，把 `hooks/` 放到固定目录，命令里写它的绝对路径，例如 `node "/Users/<你>/wr-hooks/safety-redline-guard.mjs"`（Windows 写 `node "C:/Users/<你>/wr-hooks/safety-redline-guard.mjs"`）。Antigravity 的示例在 [examples/hooks.agy.json](examples/hooks.agy.json)，用的是相对项目根目录的路径。
 
 **权限拒绝表**：钩子之外，建议同时把最危险的禁读路径写进 Claude Code 的权限拒绝表，两道防线互不依赖。可直接参考 [examples/claude-permissions.example.json](examples/claude-permissions.example.json)，首次对齐第 7 题答的额外禁读目录也照这个格式加进去。
 
@@ -224,16 +228,11 @@ wr-skills/
 
 ## 授权
 
-本仓库所有内容（Skill、提示词、钩子脚本、文档、配图）采用 [CC BY-NC 4.0](LICENSE)（署名-非商业性使用 4.0 国际）授权。说成大白话：
+本仓库所有内容（Skill、提示词、钩子脚本、文档、配图）采用 [CC BY-NC 4.0](LICENSE)（署名-非商业性使用 4.0 国际）授权，转载、修改、分享时注明作者 Windrise AI 和本仓库链接。
 
-**可以**
+**作者额外授权**（版权人在 CC BY-NC 4.0 之外另行给出的许可，与 LICENSE 一起生效）：个人和团队在自己的工作中使用这些技能、提示词和钩子（包括在公司里用来开发自己的软件），不算商业用途，可以免费用。
 
-- 个人和团队免费使用，包括在公司里用来做自己的工作和软件项目
-- 按自己的需要修改，转载分享时注明作者 Windrise AI 和本仓库链接
-
-**不可以**
-
-- 把这些内容本身拿去卖或换钱，例如放进付费课程、训练营、付费社群、付费资料包、付费咨询交付物，或者打包进收费产品当卖点或会员赠品
+**仍然不可以**：把这些内容本身拿去卖或换钱，例如转售、放进付费课程、训练营、付费社群、付费资料包、付费咨询交付物，或者打包进收费产品当卖点或会员赠品。
 
 拿不准算不算商用，或者需要商业授权，请通过 [Issue](https://github.com/WindriseAI/wr-skills/issues) 联系。
 

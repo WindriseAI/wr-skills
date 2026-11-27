@@ -4,7 +4,7 @@
 
 > 动手前先挑刺并问清需求。动工前先搜一批现成开源方案（默认 5 个，可配置）对比体积与协议，当面指出泄密、上下文膨胀、需求自相矛盾与二三阶隐患，再用决策树分轮追问并写入 `docs/SPEC.md`。
 
-**支持 Claude Code、Codex、Cursor、Antigravity、claude.ai，以及其他支持 Skills 的 Agent。** 用的 AI 不支持 Skill，也可以直接复制 [提示词清单](提示词清单.md)。
+**按 Skills 通用格式编写，可用于 Claude Code、Codex、Cursor、Antigravity、claude.ai 等支持 Skills 的 Agent**（各家没有逐一实测）。 用的 AI 不支持 Skill，也可以直接复制 [提示词清单](提示词清单.md)。
 
 [解决什么痛点](#解决什么痛点) · [四步执行流程](#四步执行流程) · [安装](#安装) · [SKILL.md 原文](../../skills/wr-ask-first/SKILL.md)
 
@@ -43,4 +43,4 @@ npx -y skills add WindriseAI/wr-skills -g --all
 
 ## 授权
 
-[CC BY-NC 4.0](../../LICENSE)。个人和团队可以免费使用（包括在公司里用来做自己的工作和项目），可以修改，转载分享时注明作者 Windrise AI 与仓库链接；不可以把这些内容本身拿去卖，例如放进付费课程、训练营、付费资料包或收费产品。拿不准算不算商用，提 [Issue](https://github.com/WindriseAI/wr-skills/issues) 问。本仓库是唯一来源，其他地方的副本以这里为准。
+[CC BY-NC 4.0](../../LICENSE)，转载、修改、分享时注明作者 Windrise AI 与仓库链接。作者额外授权：个人和团队在自己的工作中使用（包括在公司里开发自己的软件）不算商业用途，可以免费用；仍然不可以把这些内容本身拿去卖，例如转售、放进付费课程、训练营、付费资料包或收费产品。拿不准算不算商用，提 [Issue](https://github.com/WindriseAI/wr-skills/issues) 问。本仓库是唯一来源，其他地方的副本以这里为准。

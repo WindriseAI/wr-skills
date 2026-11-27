@@ -4,7 +4,7 @@
 
 > 定十倍目标并堵死作弊与假通过。在动手前把上下文和边界交代清楚，要求方案在速度、现成方案对比和体积瘦身上追求十倍差距，同时硬性禁止靠删功能、假返回值、跳过慢路径和改弱断言来凑指标。
 
-**支持 Claude Code、Codex、Cursor、Antigravity、claude.ai，以及其他支持 Skills 的 Agent。** 用的 AI 不支持 Skill，也可以直接复制 [提示词清单](提示词清单.md)。
+**按 Skills 通用格式编写，可用于 Claude Code、Codex、Cursor、Antigravity、claude.ai 等支持 Skills 的 Agent**（各家没有逐一实测）。 用的 AI 不支持 Skill，也可以直接复制 [提示词清单](提示词清单.md)。
 
 [为什么既要十倍目标又要防作弊](#为什么既要十倍目标又要防作弊) · [三个十倍动作](#三个十倍动作) · [四条防作弊红线](#四条防作弊红线) · [安装](#安装) · [SKILL.md 原文](../../skills/wr-10x-goal/SKILL.md)
 
@@ -50,4 +50,4 @@ npx -y skills add WindriseAI/wr-skills -g --all
 
 ## 授权
 
-[CC BY-NC 4.0](../../LICENSE)。个人和团队可以免费使用（包括在公司里用来做自己的工作和项目），可以修改，转载分享时注明作者 Windrise AI 与仓库链接；不可以把这些内容本身拿去卖，例如放进付费课程、训练营、付费资料包或收费产品。拿不准算不算商用，提 [Issue](https://github.com/WindriseAI/wr-skills/issues) 问。本仓库是唯一来源，其他地方的副本以这里为准。
+[CC BY-NC 4.0](../../LICENSE)，转载、修改、分享时注明作者 Windrise AI 与仓库链接。作者额外授权：个人和团队在自己的工作中使用（包括在公司里开发自己的软件）不算商业用途，可以免费用；仍然不可以把这些内容本身拿去卖，例如转售、放进付费课程、训练营、付费资料包或收费产品。拿不准算不算商用，提 [Issue](https://github.com/WindriseAI/wr-skills/issues) 问。本仓库是唯一来源，其他地方的副本以这里为准。

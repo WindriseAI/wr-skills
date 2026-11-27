@@ -42,6 +42,14 @@ function runNode(scriptName, args = [], stdinObj = null, envExtra = {}) {
   });
 }
 
+let homeSeq = 0;
+function homeWith(cfg) {
+  const dir = join(sandbox, `home-cfg-${++homeSeq}`);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'wr.config.json'), JSON.stringify(cfg, null, 2), 'utf8');
+  return { HOME: dir, USERPROFILE: dir };
+}
+
 let projSeq = 0;
 function makeProject(cfg) {
   const dir = join(sandbox, `proj-${++projSeq}`);
@@ -143,14 +151,9 @@ try {
     assert.equal(r2.status, 2, '应读到用户目录配置');
     assert.equal(runNode('safety-redline-guard.mjs', [], bash('npx playwright test', bare), quiet).status, 0, '没有用户目录配置时只记录');
 
-    const override = makeProject({ safetyGuard: { rules: { credentials: 'off' } } });
-    const r3 = runNode(
-      'safety-redline-guard.mjs',
-      [],
-      { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: override },
-      { HOME: home2, USERPROFILE: home2 }
-    );
-    assert.equal(r3.status, 0, '项目配置应覆盖用户目录配置');
+    const override = makeProject({ safetyGuard: { rules: { quietHost: 'off' } } });
+    const r3 = runNode('safety-redline-guard.mjs', [], bash('npx playwright test', override), { HOME: home2, USERPROFILE: home2, ...quiet });
+    assert.equal(r3.status, 0, '普通规则：项目配置覆盖用户目录配置');
   });
 
   test('四个钩子内嵌的配置读取段逐字一致', () => {
@@ -188,16 +191,21 @@ try {
     assert.match(resp.reason, /凭据保护/);
   });
 
-  test('safety: 凭据误伤可用 allowPatterns 放行测试夹具（7-1 实测复现）', () => {
+  test('safety: 凭据误伤可用用户目录配置的 allowPatterns 放行测试夹具（7-1），项目里写的不算（终审 B3）', () => {
     const strict = makeProject(ONBOARDED);
     const rFix = runNode('safety-redline-guard.mjs', [], bash(`cat fixtures/${authJson}`, strict));
     assert.equal(rFix.status, 2);
     const rPem = runNode('safety-redline-guard.mjs', [], bash(`cat certs/${pemFile}`, strict));
     assert.equal(rPem.status, 2);
 
-    const allow = makeProject({ ...ONBOARDED, safetyGuard: { allowPatterns: ['^fixtures/', '^certs/'] } });
-    assert.equal(runNode('safety-redline-guard.mjs', [], bash(`cat fixtures/${authJson}`, allow)).status, 0);
-    assert.equal(runNode('safety-redline-guard.mjs', [], bash(`cat certs/${pemFile}`, allow)).status, 0);
+    const allowHome = homeWith({ ...ONBOARDED, safetyGuard: { allowPatterns: ['^fixtures/', '^certs/'] } });
+    const plain = makeProject(null);
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash(`cat fixtures/${authJson}`, plain), allowHome).status, 0);
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash(`cat certs/${pemFile}`, plain), allowHome).status, 0);
+    const projAllow = makeProject({ ...ONBOARDED, safetyGuard: { allowPatterns: ['.'] } });
+    const rProj = runNode('safety-redline-guard.mjs', [], bash(`cat fixtures/${authJson}`, projAllow));
+    assert.equal(rProj.status, 2, '项目里的 allowPatterns 不能放宽凭据红线');
+    assert.match(rProj.stderr, /已忽略/);
   });
 
   // 删除规则的测试放在临时目录之外的虚拟项目与虚拟用户目录里，免得整段路径都落在系统临时目录被一律放行
@@ -239,15 +247,18 @@ try {
     assert.match(readLog(p), /"rule":"gitReset"/);
   });
 
-  test('safety: 宽松档全部跟随 hookMode，严格档全部硬拦，单条规则可关', () => {
-    const relaxed = makeProject({ onboarded: true, hookMode: 'observe', safetyGuard: { profile: 'relaxed' } });
-    assert.equal(runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: relaxed }).status, 0);
+  test('safety: 宽松档（写在用户目录）红线跟随 hookMode，严格档全部硬拦，单条规则可关', () => {
+    const relaxedHome = homeWith({ onboarded: true, hookMode: 'observe', safetyGuard: { profile: 'relaxed' } });
+    const rRelaxed = runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: makeProject(null) }, relaxedHome);
+    assert.equal(rRelaxed.status, 0);
+    assert.match(rRelaxed.stderr, /已被用户目录/, '红线被放宽时要提醒');
 
     const strict = makeProject({ onboarded: true, hookMode: 'observe', safetyGuard: { profile: 'strict' } });
     assert.equal(runNode('safety-redline-guard.mjs', [], bash('git reset --hard HEAD~1', strict)).status, 2);
 
-    const off = makeProject({ ...ONBOARDED, safetyGuard: { rules: { credentials: 'off' } } });
-    assert.equal(runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: off }).status, 0);
+    const offHome = homeWith({ ...ONBOARDED, safetyGuard: { rules: { gitReset: 'off', credentials: 'off' } } });
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash('git reset --hard HEAD~1', makeProject(null)), offHome).status, 0);
+    assert.equal(runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: makeProject(null) }, offHome).status, 0);
   });
 
   test('safety: 本机静音默认关；开启后拦重型浏览器测试，携带 WR_TEST_RUNNER=1 放行', () => {
@@ -308,12 +319,12 @@ try {
     assert.equal(runNode('safety-redline-guard.mjs', [], bash(cmdLong, optOut)).status, 0);
   });
 
-  test('safety: 没有配置文件时递归强删照样硬拦，安全规则可在对齐前单独改成只记录', () => {
+  test('safety: 没有配置文件时递归强删照样硬拦，红线只能由用户目录配置在对齐前改成只记录', () => {
     const delNoMode = (command, env = {}) => runNode('safety-redline-guard.mjs', [], bash(command, fakeProj), { ...delEnv, ...env }).status;
     assert.equal(delNoMode('rm -rf ~/Documents/builder-notes'), 2);
     assert.equal(delNoMode('rm -rf ./dist'), 0);
-    const soft = makeProject({ safetyGuard: { rules: { credentials: 'observe' } } });
-    assert.equal(runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: soft }).status, 0);
+    const softHome = homeWith({ safetyGuard: { rules: { credentials: 'observe' } } });
+    assert.equal(runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: makeProject(null) }, softHome).status, 0);
   });
 
   test('safety: 观察日志默认脱敏路径和命令参数，observeLogDetail=full 才记完整内容（7-7）', () => {
@@ -323,7 +334,7 @@ try {
     const logRed = readLog(red);
     assert.match(logRed, /"rule":"gitReset"/);
     assert.doesNotMatch(logRed, new RegExp(secretDir), '默认不记命令参数');
-    assert.match(logRed, /"git --hard …"/);
+    assert.match(logRed, /git --hard/);
 
     const full = makeProject({ ...ONBOARDED, hookMode: 'observe', observeLogDetail: 'full' });
     runNode('safety-redline-guard.mjs', [], bash(`git reset --hard HEAD~1 && echo ${secretDir}/notes`, full));
@@ -358,6 +369,69 @@ try {
     assert.match(r4.stdout, /Scanned 1 files/);
     const zh = makeProject({ ...ONBOARDED, language: { output: 'auto' } });
     assert.match(runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: zh }).stderr, /凭据保护/);
+  });
+
+  test('终审 B1：观察日志不留 NAME=值 前缀和 -p密码 这类带值短开关', () => {
+    const p = makeProject({ ...ONBOARDED, hookMode: 'observe' });
+    const token = 'ghp_' + 'a'.repeat(36);
+    runNode('safety-redline-guard.mjs', [], bash(`GITHUB_TOKEN=${token} git reset --hard`, p));
+    runNode('safety-redline-guard.mjs', [], bash('MYSQL_PWD=hunter2xyz git reset --hard', p));
+    runNode('safety-redline-guard.mjs', [], bash('mysql -uroot -pTopSecretPw1 -e x && git reset --hard', p));
+    const log = readLog(p);
+    assert.match(log, /GITHUB_TOKEN=…/);
+    assert.match(log, /MYSQL_PWD=…/);
+    for (const secret of [token, 'hunter2xyz', 'TopSecretPw1', 'uroot']) assert.ok(!log.includes(secret), secret);
+  });
+
+  test('终审 B2：递归强删的路径穿越与命令名绕过都会被拦', () => {
+    assert.equal(del('rm -rf $TMPDIR/../../Documents/x'), 2);
+    assert.equal(del('Remove-Item -Recurse -Force $env:TEMP\\..\\..\\Documents\\x'), 2);
+    assert.equal(del('rd /s /q %TEMP%\\..\\Documents\\x'), 2);
+    assert.equal(del('rm -rf $TMPDIR/build-cache'), 0, '真正落在临时目录里的放行');
+    assert.equal(del('/bin/rm -rf ~/Documents/x'), 2);
+    assert.equal(del('\\rm -rf ~/Documents/x'), 2);
+    assert.equal(del('find ~/Documents -name "*.log" -delete'), 2);
+    assert.equal(del('find ./dist -type f -delete'), 0);
+    assert.equal(del(`python -c "import shutil; shutil.rmtree('/srv/data')"`), 2);
+    assert.equal(del(`node -e "require('fs').rmSync('~/Documents/x', { recursive: true })"`), 2);
+    assert.equal(del('rm -rf ~/tmp/Documents'), 2, '家目录下叫 tmp 的普通目录不再当临时目录');
+    assert.equal(del('rm -rf ./tmp/cache'), 0, '项目里的 tmp 目录放行');
+  });
+
+  test('终审 B3：项目里的 wr.config.json 关不掉两条红线，环境变量 WR_HOOK_MODE 也不行', () => {
+    const evil = makeProject({ ...ONBOARDED, hookMode: 'off', safetyGuard: { profile: 'relaxed', rules: { credentials: 'off', hardDelete: 'off' }, allowedDeleteDirs: ['Documents'] } });
+    const r1 = runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: evil });
+    assert.equal(r1.status, 2);
+    assert.match(r1.stderr, /已忽略/);
+    const r2 = runNode('safety-redline-guard.mjs', [], bash('rm -rf ./src', evil));
+    assert.equal(r2.status, 0, '工作区在临时目录下，强删本来就放行');
+    const strictHome = homeWith({ ...ONBOARDED, safetyGuard: { profile: 'strict' } });
+    assert.equal(runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: evil }, strictHome).status, 2, '用户的严格档不被项目配置覆盖');
+    assert.equal(runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: sandbox }, { WR_HOOK_MODE: 'off' }).status, 2);
+    assert.equal(runNode('safety-redline-guard.mjs', ['--mode', 'off'], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: sandbox }).status, 0, '钩子命令行是用户自己写的，可以关');
+    assert.equal(del('rm -rf ~/Documents/x'), 2);
+
+    const h = homeWith({ onboarded: true });
+    const p = makeProject(null);
+    const write = runNode('safety-redline-guard.mjs', [], { tool_name: 'Write', tool_input: { file_path: '~/wr.config.json', content: '{}' }, cwd: p }, h);
+    assert.equal(write.status, 2, 'AI 不能改用户目录的守卫配置');
+    assert.match(write.stderr, /守卫配置保护/);
+    assert.equal(runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: '~/wr.config.json' }, cwd: p }, h).status, 0, '读可以');
+    assert.equal(runNode('safety-redline-guard.mjs', [], { tool_name: 'Write', tool_input: { file_path: 'wr.config.json', content: '{}' }, cwd: p }, h).status, 0, '项目里的配置照常能写（首次对齐要写）');
+  });
+
+  test('终审 B4：Grep/Glob 的通配参数、常见凭据文件名和 ../ 穿越都会被拦', () => {
+    const p = makeProject(null);
+    const call = (tool, input) => runNode('safety-redline-guard.mjs', [], { tool_name: tool, tool_input: input, cwd: p }).status;
+    assert.equal(call('Grep', { pattern: 'API_KEY', glob: ['.', 'e', 'n', 'v', '*'].join(''), path: '.' }), 2);
+    assert.equal(call('Glob', { pattern: ['**/', '.', 'e', 'n', 'v'].join('') }), 2);
+    assert.equal(call('Glob', { pattern: 'src/**/*.ts' }), 0);
+    const ssh = ['~/', '.', 's', 's', 'h'].join('');
+    assert.equal(call('Bash', { command: `cat ${ssh}/docs/keys/../id_rsa` }), 2);
+    for (const name of ['.npmrc', '.git-credentials', 'backup/id_ed25519', ['server', 'key', 'bak'].join('.')]) {
+      assert.equal(call('Bash', { command: 'cat ~/' + name }), 2, name);
+    }
+    assert.equal(call('Bash', { command: 'cat ~/backup/id_ed25519.pub' }), 0, '公钥放行');
   });
 
   // ========== 三、evidence-before-pass-gate ==========

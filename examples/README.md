@@ -18,7 +18,9 @@
 ## 钩子怎么决定拦不拦
 
 1. 命令行参数 `--mode observe|enforce|off` 最优先，其次是环境变量 `WR_HOOK_MODE`。
-2. 都没给时，配置里没有 `"onboarded": true`（包括根本没有配置文件），**只有凭据零触碰和递归强删两条红线照样硬拦**，其余规则只记录不拦。这两条在对齐前也可以用 `safetyGuard.rules` 单独改成 `observe` 或 `off`。首次对齐写完配置之后按下面的规则拦。
+2. 都没给时，配置里没有 `"onboarded": true`（包括根本没有配置文件），**只有凭据零触碰和递归强删两条红线照样硬拦**，其余规则只记录不拦。首次对齐写完配置之后按下面的规则拦。
+
+**两条红线只能由你本人放宽**：放宽它们的字段（`safetyGuard.rules.credentials` / `hardDelete`、`safetyGuard.profile` 写 `relaxed`、`safetyGuard.allowPatterns`、`safetyGuard.allowedDeleteDirs`、`hookMode` 写 `off`）只在用户目录的 `~/wr.config.json` 里生效，项目里的 `wr.config.json` 写了也忽略（命中红线时会在拦截原因里说明已忽略）；环境变量 `WR_HOOK_MODE` 也只能收紧它们；钩子命令行里的 `--mode` 是你自己写在设置里的，可以放宽。AI 用写文件工具改 `~/wr.config.json` 会被拦。红线被放宽时，每次放行都会在标准错误输出里提醒一句。下表里的「宽松档」对两条红线的影响也只在写在用户目录时生效。
 3. 完成首次对齐后看 `hookMode`，再叠加安全守卫的档位 `safetyGuard.profile`：
 
 | 档位 | 凭据零触碰 | 递归强删 | git 硬重置 | 其余规则 |
@@ -38,7 +40,7 @@
 | `onboarded` | `false` | 首次对齐做完后由 AI 写成 `true`。不是 `true` 时除凭据和递归强删两条红线外，钩子只记录不拦，技能每次启用都会先问一遍八道题 |
 | `hookMode` | `observe` | 完成对齐后钩子的总模式：`observe` 只记录，`enforce` 硬拦，`off` 全关 |
 | `observeLogPath` | `.wr-hook-observe.jsonl` | 观察日志路径（相对项目根），记得加进 `.gitignore` |
-| `observeLogDetail` | `redacted` | 观察日志默认脱敏：只记规则名、路径最后一段、命令的程序名和不带值的开关，隐私扫描不记命中原文。写 `full` 才记完整命令和路径 |
+| `observeLogDetail` | `redacted` | 观察日志默认脱敏：只记规则名、路径最后一段、命令的程序名、单字母开关和不带值的长开关，`NAME=值` 只留 `NAME=…`，隐私扫描不记命中原文。写 `full` 才记完整命令和路径 |
 
 ### environment 机器与环境（第 1、2 题）
 
@@ -48,7 +50,9 @@
 | `environment.heavyTestsOnMainMachine` | `ask` | 只有一台电脑时，耗时长的端到端测试：`allow` 直接跑，`ask` 先说耗时等你点头，`deny` 只把命令列给你 |
 | `environment.quietMainMachine` | `false` | 本机静音。打开后安全守卫不许在这台电脑模拟全局键鼠、不许直接跑 `playwright test`、`cypress run`、`electron .` 这类会弹窗口的测试 |
 | `environment.remoteHost` | 空 | 测试机的 ssh 主机名（字符串或数组）。填了才启用「远端临时目录防碰撞」规则，并且只检查发往这些主机的 `ssh` / `scp` 命令 |
-| `environment.os` / `environment.shell` / `environment.host` | 空（自动探测） | 系统、终端、AI 宿主。`shell` 为 `powershell` 或 `pwsh` 且探测到 Orca 时启用 Orca 引号规则；空着时按 Windows 视为 PowerShell |
+| `environment.os` | 空（自动探测） | 系统：`windows` / `macos` / `linux`。wr-hook-forge 按它给命令写法、全局安装路径和回收站命令 |
+| `environment.shell` | 空（自动探测） | 终端，例如 `powershell`、`bash`、`zsh`。为 `powershell` 或 `pwsh` 且探测到 Orca 时启用 Orca 引号规则；空着时按 Windows 视为 PowerShell。wr-geo 按它给 `curl` 写法 |
+| `environment.host` | 空（自动探测） | AI 宿主，例如 `claude-code`、`antigravity`、`codex`、`cursor`。wr-hook-forge 按它挑钩子挂载示例；Codex、Cursor 等挂不上钩子时会直说 |
 
 ### tools 工具（第 2 题）
 
@@ -73,7 +77,7 @@
 
 | 字段 | 默认值 | 含义 |
 | --- | --- | --- |
-| `workflow.team` | `solo` | `solo` 一个人；`team` 团队 |
+| `workflow.team` | `solo` | `solo` 一个人；`team` 团队。wr-split-work 在 `team` 时不在本地直接合并，各分支发合并请求走评审 |
 | `workflow.parallel` | `ask` | 让 AI 开多个帮手并行：`off` 不开，`ask` 先问，`on` 直接开 |
 | `workflow.defaultBranch` | 空（自动探测） | 默认分支名，例如 `main` 或 `master` |
 | `workflow.branchPrefix` | `feat/` | 新分支前缀 |
@@ -100,7 +104,7 @@
 | 字段 | 默认值 | 含义 |
 | --- | --- | --- |
 | `project.kind` | 空（自动探测） | `web-ui` / `cli-lib` / `backend` / `marketing-site` / `other`。不是界面类时跳过像素扫描和界面打磨 |
-| `project.hasOnlineUsers` | `false` | 有没有线上用户，决定要不要展示「群反馈归批」那套流程 |
+| `project.hasOnlineUsers` | `false` | 有没有线上用户。wr-real-qa 只在 `true` 时走「群反馈先只读查日志归批」那一步 |
 | `geo.languages` | `[]` | 官网有哪些语言版本 |
 | `geo.region` | 空 | 主要地区，例如 `cn`、`global`。面向中文用户时 wr-geo 会加测 `Baiduspider` |
 | `geo.crawlerPolicy` | 空（由你定） | `allow-all` 全放行；`block-training` 只拦训练类爬虫；`custom` 自定 |
@@ -110,10 +114,10 @@
 | 字段 | 默认值 | 含义 |
 | --- | --- | --- |
 | `safetyGuard.profile` | `standard` | 档位，见上面的表 |
-| `safetyGuard.rules` | `{}` | 单条规则覆盖，例如 `{ "gitReset": "off" }` |
-| `safetyGuard.allowedDeleteDirs` | `dist`、`build`、`node_modules`、`.cache`、`worktrees` | 递归强删放行的目录名。按路径段整段匹配，并且必须在项目目录里面；临时目录（系统临时目录或路径里有 `tmp` / `temp` 这一段）始终放行 |
+| `safetyGuard.rules` | `{}` | 单条规则覆盖，例如 `{ "gitReset": "off" }`。`credentials`、`hardDelete` 两条只认用户目录配置 |
+| `safetyGuard.allowedDeleteDirs` | `dist`、`build`、`out`、`coverage`、`node_modules`、`.cache`、`.next`、`.nuxt`、`.turbo`、`.parcel-cache`、`target`、`__pycache__`、`.pytest_cache`、`worktrees` | 递归强删放行的目录名。按路径段整段匹配，并且必须在项目目录里面。始终放行的临时目录：系统临时目录、根目录下的 `/tmp`、`/var/tmp` 或盘符根下的 `tmp` / `temp`、项目里叫 `tmp` / `temp` 的目录。**只在用户目录配置里生效** |
 | `safetyGuard.extraProtectedPatterns` | `[]` | 额外不许碰的路径正则 |
-| `safetyGuard.allowPatterns` | `[]` | 凭据规则的白名单正则，例如测试夹具 `^fixtures/` |
+| `safetyGuard.allowPatterns` | `[]` | 凭据规则的白名单正则，例如测试夹具 `^fixtures/`。**只在用户目录配置里生效** |
 | `safetyGuard.trashCommand` | 空 | 拦下强删时提示用的回收站命令；空着时按系统给默认写法 |
 | `safetyGuard.orcaInlineMaxChars` | `120` | Orca 引号规则里内联参数的长度上限 |
 | `safetyGuard.remoteTmpSuffixes` | 空（用内置的 task、run、job、wt、branch、worker、时间戳、短哈希） | 远端临时目录被视为「已带唯一后缀」的正则片段 |
@@ -135,6 +139,6 @@
 
 | 变量 | 含义 |
 | --- | --- |
-| `WR_HOOK_MODE` | 临时指定所有钩子的模式（`observe` / `enforce` / `off`），优先级高于配置 |
+| `WR_HOOK_MODE` | 临时指定钩子的模式（`observe` / `enforce` / `off`），优先级高于配置；对凭据和递归强删两条红线只能收紧，不能放宽 |
 | `WR_QUIET_HOST=1` | 临时打开本机静音，效果同 `environment.quietMainMachine: true` |
 | `WR_TEST_RUNNER=1` | 本机静音打开时，你同意在本机跑某条重型测试，就在那条命令前加上它放行 |

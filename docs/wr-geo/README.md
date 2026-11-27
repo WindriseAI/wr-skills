@@ -4,7 +4,7 @@
 
 > 官网上线前后的搜索引擎与 AI 收录体检，先实测线上内容与爬虫状态，再写逐字契约并由独立检查脚本验收。
 
-**支持 Claude Code、Codex、claude.ai，以及其他支持 Skills 的 Agent。** 用的 AI 不支持 Skill，也可以直接复制 [提示词清单](提示词清单.md)。
+**按 Skills 通用格式编写，可用于 Claude Code、Codex、claude.ai 等支持 Skills 的 Agent**（各家没有逐一实测）。 用的 AI 不支持 Skill，也可以直接复制 [提示词清单](提示词清单.md)。
 
 [这是什么](#这是什么) · [四步流程](#四步流程) · [脚本](#脚本) · [配置格式](#配置格式) · [安装](#安装) · [注意事项](#注意事项) · [SKILL.md 原文](../../skills/wr-geo/SKILL.md)
 
@@ -138,4 +138,4 @@ ChatGPT、Gemini、豆包、Kimi 等任何 AI 聊天工具，可以直接用 [�
 
 ## 授权
 
-[CC BY-NC 4.0](../../LICENSE)。个人和团队可以免费使用（包括在公司里用来做自己的工作和项目），可以修改，转载分享时注明作者 Windrise AI 与仓库链接；不可以把这些内容本身拿去卖，例如放进付费课程、训练营、付费资料包或收费产品。拿不准算不算商用，提 [Issue](https://github.com/WindriseAI/wr-skills/issues) 问。本仓库是唯一来源，其他地方的副本以这里为准。
+[CC BY-NC 4.0](../../LICENSE)，转载、修改、分享时注明作者 Windrise AI 与仓库链接。作者额外授权：个人和团队在自己的工作中使用（包括在公司里开发自己的软件）不算商业用途，可以免费用；仍然不可以把这些内容本身拿去卖，例如转售、放进付费课程、训练营、付费资料包或收费产品。拿不准算不算商用，提 [Issue](https://github.com/WindriseAI/wr-skills/issues) 问。本仓库是唯一来源，其他地方的副本以这里为准。
