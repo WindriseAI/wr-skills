@@ -5,13 +5,15 @@ import assert from 'node:assert/strict';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
-import { tmpdir } from 'node:os';
+import { tmpdir, userInfo } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const HOOKS_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_DIR = resolve(HOOKS_DIR, '..');
 const sandbox = mkdtempSync(join(tmpdir(), 'wr-hooks-test-'));
-const sandboxHome = join(sandbox, 'home');
+// 用户级配置目录单独放在沙盒外：沙盒本身也被当作项目目录用，--user-config 不许指向项目里
+const homesRoot = mkdtempSync(join(tmpdir(), 'wr-hooks-homes-'));
+const sandboxHome = join(homesRoot, 'home');
 mkdirSync(sandboxHome, { recursive: true });
 const LOG = join(sandbox, '.wr-hook-observe.jsonl');
 
@@ -48,7 +50,7 @@ function runNode(scriptName, args = [], stdinObj = null, envExtra = {}, opts = {
 
 let homeSeq = 0;
 function homeWith(cfg) {
-  const dir = join(sandbox, `home-cfg-${++homeSeq}`);
+  const dir = join(homesRoot, `home-cfg-${++homeSeq}`);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'wr.config.json'), JSON.stringify(cfg, null, 2), 'utf8');
   return { HOME: dir, USERPROFILE: dir };
@@ -142,7 +144,7 @@ try {
     const r1 = runNode('safety-redline-guard.mjs', [], bash('npx playwright test', deep), quiet);
     assert.equal(r1.status, 2, '子目录应读到上层项目配置');
 
-    const home2 = join(sandbox, 'home-with-config');
+    const home2 = join(homesRoot, 'home-with-config');
     mkdirSync(home2, { recursive: true });
     writeFileSync(join(home2, 'wr.config.json'), JSON.stringify(ONBOARDED), 'utf8');
     const bare = makeProject(null);
@@ -497,6 +499,50 @@ try {
     const log = readLog(p);
     assert.match(log, /TOKEN=…/);
     assert.ok(!log.includes('SECRET2') && !log.includes('abc def'), log);
+  });
+
+  test('复审三：cd ~ 紧挨分号或 && 的写法、Git Bash 和 WSL 风格的用户目录路径，改用户配置都拦', () => {
+    const p = makeProject(null);
+    const cfg = 'wr.config.json';
+    const home = userInfo().homedir.replace(/\\/g, '/');
+    const m = home.match(/^([A-Za-z]):\/(.*)$/);
+    const cmds = [`cd ~; echo {} > ${cfg}`, `pushd ~; echo {} > ${cfg}`, `cd ~&&echo {} > ${cfg}`, `(cd ~) && echo {} > ${cfg}`];
+    if (m) cmds.push(`echo {} > /${m[1].toLowerCase()}/${m[2]}/${cfg}`, `echo {} > /mnt/${m[1].toLowerCase()}/${m[2]}/${cfg}`, `cd ${home} && echo {} > ${cfg}`);
+    for (const c of cmds) assert.equal(runNode('safety-redline-guard.mjs', [], bash(c, p)).status, 2, c);
+  });
+
+  test('复审三：--user-config 必须是项目外的绝对路径，否则报错不加载', () => {
+    const p = makeProject(null);
+    writeFileSync(join(p, 'relax.json'), JSON.stringify({ onboarded: true, safetyGuard: { rules: { credentials: 'off' } } }), 'utf8');
+    const rRel = spawnSync(process.execPath, [join(HOOKS_DIR, 'safety-redline-guard.mjs'), '--user-config', 'relax.json'], {
+      input: JSON.stringify({ tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: p }), encoding: 'utf8', cwd: p, env: baseEnv()
+    });
+    assert.equal(rRel.status, 2, '相对路径不加载，凭据照样拦');
+    assert.match(rRel.stderr, /被拒绝/);
+    const rIn = spawnSync(process.execPath, [join(HOOKS_DIR, 'safety-redline-guard.mjs'), '--user-config', join(p, 'relax.json')], {
+      input: JSON.stringify({ tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: p }), encoding: 'utf8', cwd: p, env: baseEnv()
+    });
+    assert.equal(rIn.status, 2, '项目里的绝对路径也不加载');
+    assert.match(rIn.stderr, /位于当前项目目录里/);
+    const outside = homeWith({ onboarded: true, safetyGuard: { rules: { credentials: 'off' } } });
+    assert.equal(runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: p }, outside).status, 0, '项目外的绝对路径照常生效');
+  });
+
+  test('复审三：--user-config 指向的文件不管叫什么名字，Bash 和写文件工具改它都拦，且不随 credentials 放宽而失效', () => {
+    const dir = join(homesRoot, 'custom-cfg');
+    mkdirSync(dir, { recursive: true });
+    const custom = join(dir, 'strict-guard.json');
+    writeFileSync(custom, JSON.stringify({ onboarded: true, safetyGuard: { rules: { credentials: 'off' } } }), 'utf8');
+    const p = makeProject(null);
+    const run = (input) => spawnSync(process.execPath, [join(HOOKS_DIR, 'safety-redline-guard.mjs'), '--user-config', custom], {
+      input: JSON.stringify({ ...input, cwd: p }), encoding: 'utf8', cwd: p, env: baseEnv()
+    }).status;
+    const fwd = custom.replace(/\\/g, '/');
+    for (const c of [`echo {} > ${fwd}`, `sed -i s/off/enforce/ "${custom}"`, `cp x.json ${fwd}`, `cd ${dir.replace(/\\/g, '/')}; echo {} > strict-guard.json`]) {
+      assert.equal(run({ tool_name: 'Bash', tool_input: { command: c } }), 2, c);
+    }
+    assert.equal(run({ tool_name: 'Write', tool_input: { file_path: custom, content: '{}' } }), 2, '配置里 credentials 已放宽，守卫配置保护照样生效');
+    assert.equal(run({ tool_name: 'Bash', tool_input: { command: `cat ${fwd}` } }), 0, '只读查看放行');
   });
 
   // ========== 三、evidence-before-pass-gate ==========
@@ -950,4 +996,5 @@ try {
   console.log(`\n全部 ${passed} 项钩子自测通过。`);
 } finally {
   rmSync(sandbox, { recursive: true, force: true });
+  rmSync(homesRoot, { recursive: true, force: true });
 }

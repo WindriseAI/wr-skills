@@ -3,7 +3,7 @@
 // 实证门禁钩子（PostToolUse 记录已读证据 + PreToolUse 校验未读/未覆盖/零用例禁标 passes: true）
 // 纯 Node.js 标准库零依赖，兼容 Claude Code 与 Antigravity，支持 observe / enforce 双模式。
 import { existsSync, readFileSync, appendFileSync, mkdirSync } from 'node:fs';
-import { join, resolve, basename, dirname } from 'node:path';
+import { join, resolve, basename, dirname, relative, isAbsolute } from 'node:path';
 import { tmpdir, homedir, userInfo } from 'node:os';
 
 function parseCliArgs(argv) {
@@ -57,14 +57,43 @@ function realHome() {
   }
   return homedir();
 }
-// 用户目录配置的位置：钩子命令行写了 --user-config 就用它（命令行是用户自己写在钩子设置里的），否则是真实用户目录下的 wr.config.json
-function userConfigPath(cliUserConfig) {
-  return cliUserConfig ? resolve(String(cliUserConfig)) : join(realHome(), 'wr.config.json');
+function insideDir(child, parent) {
+  const rel = relative(parent, child);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
+// 当前项目的根目录：从工作目录往上找带 .git 的目录，到用户目录为止；找不到就用工作目录本身
+function projectRootOf(cwd) {
+  const home = resolve(realHome());
+  let dir = resolve(cwd);
+  for (;;) {
+    if (dir === home) return resolve(cwd);
+    if (existsSync(join(dir, '.git'))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return resolve(cwd);
+    dir = parent;
+  }
+}
+// 用户目录配置的位置：钩子命令行写了 --user-config 就用它（命令行是用户自己写在钩子设置里的），否则是真实用户目录下的 wr.config.json。
+// --user-config 必须是项目目录之外的绝对路径；相对路径或落在项目里的路径直接拒绝，不加载，退回真实用户目录的配置
+function userConfigPath(cliUserConfig, cwd) {
+  const fallback = join(realHome(), 'wr.config.json');
+  if (!cliUserConfig) return { path: fallback, rejected: '' };
+  const raw = String(cliUserConfig);
+  if (!isAbsolute(raw)) return { path: fallback, rejected: 'relative' };
+  const p = resolve(raw);
+  if (cwd && (insideDir(p, resolve(cwd)) || insideDir(p, projectRootOf(cwd)))) return { path: fallback, rejected: 'inside-project' };
+  return { path: p, rejected: '' };
 }
 function loadConfig(cwd, explicitPath, cliUserConfig) {
   let userCfg = {};
   try {
-    const p = userConfigPath(cliUserConfig);
+    const uc = userConfigPath(cliUserConfig, cwd);
+    if (uc.rejected) {
+      process.stderr.write(
+        `wr hooks: --user-config "${cliUserConfig}" 被拒绝（${uc.rejected === 'relative' ? '不是绝对路径' : '位于当前项目目录里'}），没有加载，改用用户目录的 wr.config.json。请改成项目目录之外的绝对路径。 / rejected (${uc.rejected}); using ~/wr.config.json instead. Use an absolute path outside the project.\n`
+      );
+    }
+    const p = uc.path;
     if (existsSync(p)) userCfg = readJsonSafe(p) || {};
   } catch {
     // 受限环境读不到用户目录时忽略

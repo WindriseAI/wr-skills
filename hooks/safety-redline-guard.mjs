@@ -3,7 +3,7 @@
 // 通用安全红线守卫（PreToolUse）
 // 纯 Node.js 标准库零依赖，同时兼容 Claude Code 与 Antigravity 钩子协议，支持 observe / enforce 双模式，每条规则可单独设 off / observe / enforce。
 import { existsSync, readFileSync, appendFileSync, statSync } from 'node:fs';
-import { join, resolve, dirname, relative, isAbsolute, parse as parsePath, posix as posixPath } from 'node:path';
+import { join, resolve, dirname, basename, relative, isAbsolute, parse as parsePath, posix as posixPath } from 'node:path';
 import { homedir, userInfo } from 'node:os';
 
 // <wr-config> 配置读取、模式判定、提示语言与日志脱敏（四个钩子共用同一段，改动时四处保持一致，自测会逐字比对）
@@ -46,14 +46,43 @@ function realHome() {
   }
   return homedir();
 }
-// 用户目录配置的位置：钩子命令行写了 --user-config 就用它（命令行是用户自己写在钩子设置里的），否则是真实用户目录下的 wr.config.json
-function userConfigPath(cliUserConfig) {
-  return cliUserConfig ? resolve(String(cliUserConfig)) : join(realHome(), 'wr.config.json');
+function insideDir(child, parent) {
+  const rel = relative(parent, child);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
+// 当前项目的根目录：从工作目录往上找带 .git 的目录，到用户目录为止；找不到就用工作目录本身
+function projectRootOf(cwd) {
+  const home = resolve(realHome());
+  let dir = resolve(cwd);
+  for (;;) {
+    if (dir === home) return resolve(cwd);
+    if (existsSync(join(dir, '.git'))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return resolve(cwd);
+    dir = parent;
+  }
+}
+// 用户目录配置的位置：钩子命令行写了 --user-config 就用它（命令行是用户自己写在钩子设置里的），否则是真实用户目录下的 wr.config.json。
+// --user-config 必须是项目目录之外的绝对路径；相对路径或落在项目里的路径直接拒绝，不加载，退回真实用户目录的配置
+function userConfigPath(cliUserConfig, cwd) {
+  const fallback = join(realHome(), 'wr.config.json');
+  if (!cliUserConfig) return { path: fallback, rejected: '' };
+  const raw = String(cliUserConfig);
+  if (!isAbsolute(raw)) return { path: fallback, rejected: 'relative' };
+  const p = resolve(raw);
+  if (cwd && (insideDir(p, resolve(cwd)) || insideDir(p, projectRootOf(cwd)))) return { path: fallback, rejected: 'inside-project' };
+  return { path: p, rejected: '' };
 }
 function loadConfig(cwd, explicitPath, cliUserConfig) {
   let userCfg = {};
   try {
-    const p = userConfigPath(cliUserConfig);
+    const uc = userConfigPath(cliUserConfig, cwd);
+    if (uc.rejected) {
+      process.stderr.write(
+        `wr hooks: --user-config "${cliUserConfig}" 被拒绝（${uc.rejected === 'relative' ? '不是绝对路径' : '位于当前项目目录里'}），没有加载，改用用户目录的 wr.config.json。请改成项目目录之外的绝对路径。 / rejected (${uc.rejected}); using ~/wr.config.json instead. Use an absolute path outside the project.\n`
+      );
+    }
+    const p = uc.path;
     if (existsSync(p)) userCfg = readJsonSafe(p) || {};
   } catch {
     // 受限环境读不到用户目录时忽略
@@ -252,6 +281,10 @@ function projectTriedToRelax(config) {
 }
 
 function ruleMode(name, modeInfo, config) {
+  if (name === 'guardConfig') {
+    const cliRelax = modeInfo.explicit && modeInfo.source === 'cli' && (modeInfo.mode === 'off' || modeInfo.mode === 'observe');
+    return cliRelax ? modeInfo.mode : 'enforce';
+  }
   if (RED_LINES.has(name)) return redLineMode(name, modeInfo, config);
   if (modeInfo.mode === 'off') return 'off';
   const sg = config.safetyGuard || {};
@@ -633,17 +666,43 @@ function checkRemoteBareTempDir(cmd, hosts, suffixes, lang) {
 }
 
 // 用户目录配置能放宽红线，所以命令里出现「用户目录 + wr.config.json」且不是只读查看时一律拦
-const HOME_REF_RE = /(?:^|[\s"'=(:,])~(?=[/\\\s"']|$)|\$\{?HOME\}?|%USERPROFILE%|%HOMEPATH%|\$env:(?:USERPROFILE|HOME)|homedir\s*\(|expanduser|Path\.home|os\.environ|getenv/i;
+const HOME_REF_RE = /(?:^|[\s"'=(:,;&|])~(?=[/\\\s"';&|)]|$)|\$\{?HOME\}?|%USERPROFILE%|%HOMEPATH%|\$env:(?:USERPROFILE|HOME)|homedir\s*\(|expanduser|Path\.home|os\.environ|getenv/i;
 const READ_ONLY_CMD_RE = /^\s*(?:cat|type|more|less|head|tail|bat|get-content|gc|wc|stat|ls|dir|get-item|test-path)\b/i;
+// 同一路径的几种写法：盘符写法 c:/…、Git Bash 的 /c/…、WSL 的 /mnt/c/…、Cygwin 的 /cygdrive/c/…
+function pathForms(p) {
+  const n = resolve(p).replace(/\\/g, '/').toLowerCase();
+  const forms = [n];
+  const m = n.match(/^([a-z]):\/(.*)$/);
+  if (m) forms.push(`/${m[1]}/${m[2]}`, `/mnt/${m[1]}/${m[2]}`, `/cygdrive/${m[1]}/${m[2]}`);
+  return forms;
+}
+// 命令里是否出现了这个路径（后面紧跟路径分隔符、空白、命令分隔符、引号或结尾，才算整段匹配）
+function mentionsPath(lowered, p) {
+  return pathForms(p).some((form) => {
+    let i = lowered.indexOf(form);
+    while (i >= 0) {
+      const next = lowered.charAt(i + form.length);
+      if (next === '' || /[/\s;&|"')]/.test(next)) return true;
+      i = lowered.indexOf(form, i + 1);
+    }
+    return false;
+  });
+}
 function writesGuardConfig(cmd, cwd, guardPaths) {
   const text = String(cmd || '');
-  if (!/wr\.config\.json/i.test(text)) return false;
   const lowered = text.replace(/\\/g, '/').toLowerCase();
-  const mentionsHome =
-    HOME_REF_RE.test(text) ||
-    guardPaths.some((g) => lowered.includes(g.replace(/\\/g, '/').toLowerCase()) || lowered.includes(dirname(g).replace(/\\/g, '/').toLowerCase() + '/')) ||
-    guardPaths.some((g) => resolve(cwd) === dirname(g));
-  if (!mentionsHome) return false;
+  const home = resolve(realHome());
+  const hit = guardPaths.some((g) => {
+    if (!lowered.includes(basename(g).toLowerCase())) return false;
+    const dir = dirname(g);
+    return (
+      mentionsPath(lowered, g) ||
+      mentionsPath(lowered, dir) ||
+      (samePath(resolve(dir), home) && HOME_REF_RE.test(text)) ||
+      samePath(resolve(cwd), resolve(dir))
+    );
+  });
+  if (!hit) return false;
   const subs = splitSubCommands(text).filter((x) => x.trim());
   const readOnly = !/>|\btee\b/i.test(text) && subs.every((x) => READ_ONLY_CMD_RE.test(x));
   return !readOnly;
@@ -686,21 +745,15 @@ function checkViolations(paths, commands, cwd, config, lang, toolName = '', guar
   // 用户目录的 wr.config.json 是唯一能放宽红线的地方，不让 AI 用写文件工具改它
   const guardMsg = () => tr(
     lang,
-    '红线拦截（守卫配置保护）：用户目录的 wr.config.json 能放宽安全红线，只能由用户本人修改。请把要改的内容告诉用户，让用户自己改。',
-    'Blocked (guard config): ~/wr.config.json can relax the safety red lines, so only the user may edit it. Tell the user what to change instead.'
+    '红线拦截（守卫配置保护）：用户级的守卫配置（~/wr.config.json 或钩子 --user-config 指定的文件）能放宽安全红线，只能由用户本人修改。请把要改的内容告诉用户，让用户自己改。',
+    'Blocked (guard config): the user-level guard config (~/wr.config.json or the file given by --user-config) can relax the safety red lines, so only the user may edit it. Tell the user what to change instead.'
   );
   for (const cmd of commands) {
-    if (writesGuardConfig(cmd, cwd, guardPaths)) add('credentials', guardMsg());
+    if (writesGuardConfig(cmd, cwd, guardPaths)) add('guardConfig', guardMsg());
   }
   if (/write|edit|create|replace|patch/i.test(toolName)) {
     for (const p of paths) {
-      if (guardPaths.some((g) => samePath(resolve(cwd, expandHome(String(p))), g))) {
-        add('credentials', tr(
-          lang,
-          '红线拦截（守卫配置保护）：用户目录的 wr.config.json 能放宽安全红线，只能由用户本人修改。请把要改的内容告诉用户，让用户自己改。',
-          'Blocked (guard config): ~/wr.config.json can relax the safety red lines, so only the user may edit it. Tell the user what to change instead.'
-        ));
-      }
+      if (guardPaths.some((g) => samePath(resolve(cwd, expandHome(String(p))), g))) add('guardConfig', guardMsg());
     }
   }
   for (const p of paths) {
@@ -830,7 +883,7 @@ function main() {
   }
   const cwd = cli.cwd || parsed.cwd || process.cwd();
   const config = loadConfig(cwd, undefined, cli.userConfig);
-  const guardPaths = [...new Set([join(realHome(), 'wr.config.json'), userConfigPath(cli.userConfig)].map((p) => resolve(p)))];
+  const guardPaths = [...new Set([join(realHome(), 'wr.config.json'), userConfigPath(cli.userConfig, cwd).path].map((p) => resolve(p)))];
   const modeInfo = resolveMode(cli.mode, config);
   const lang = pickLang(config);
 

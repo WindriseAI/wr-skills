@@ -16,7 +16,11 @@
       "Edit(~/.aws/**)",
       "Edit(**/.env)",
       "Edit(**/.env.local)",
-      "Edit(**/.env.production)"
+      "Edit(**/.env.production)",
+      "Edit(~/wr.config.json)",
+      "Edit(~/.claude/settings*.json)",
+      "Edit(.claude/settings*.json)",
+      "Edit(hooks/**)"
     ]
   }
 }
