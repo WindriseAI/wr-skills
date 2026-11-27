@@ -15,12 +15,14 @@
 
 钩子和技能按同一个顺序找 `wr.config.json`：先读用户目录（`~/wr.config.json`，Windows 是 `C:\Users\<你>\wr.config.json`），再从当前目录逐级往上找项目里的那份，项目里写了的字段覆盖用户目录的。两份都没有时一律按下表默认值。
 
+钩子找「用户目录」时按系统账户的真实用户目录，不看 `HOME`、`USERPROFILE` 环境变量，这样项目改环境变量也换不掉这份配置。想把用户级配置放到别处，在钩子命令后面加 `--user-config <配置文件路径>`（钩子命令是你自己写在设置里的，项目改不了）。
+
 ## 钩子怎么决定拦不拦
 
 1. 命令行参数 `--mode observe|enforce|off` 最优先，其次是环境变量 `WR_HOOK_MODE`。
 2. 都没给时，配置里没有 `"onboarded": true`（包括根本没有配置文件），**只有凭据零触碰和递归强删两条红线照样硬拦**，其余规则只记录不拦。首次对齐写完配置之后按下面的规则拦。
 
-**两条红线只能由你本人放宽**：放宽它们的字段（`safetyGuard.rules.credentials` / `hardDelete`、`safetyGuard.profile` 写 `relaxed`、`safetyGuard.allowPatterns`、`safetyGuard.allowedDeleteDirs`、`hookMode` 写 `off`）只在用户目录的 `~/wr.config.json` 里生效，项目里的 `wr.config.json` 写了也忽略（命中红线时会在拦截原因里说明已忽略）；环境变量 `WR_HOOK_MODE` 也只能收紧它们；钩子命令行里的 `--mode` 是你自己写在设置里的，可以放宽。AI 用写文件工具改 `~/wr.config.json` 会被拦。红线被放宽时，每次放行都会在标准错误输出里提醒一句。下表里的「宽松档」对两条红线的影响也只在写在用户目录时生效。
+**两条红线只能由你本人放宽**：放宽它们的字段（`safetyGuard.rules.credentials` / `hardDelete`、`safetyGuard.profile` 写 `relaxed`、`safetyGuard.allowPatterns`、`safetyGuard.allowedDeleteDirs`、`hookMode` 写 `off`）只在用户目录的 `~/wr.config.json` 里生效，项目里的 `wr.config.json` 写了也忽略（命中红线时会在拦截原因里说明已忽略）；所有环境变量都只能收紧它们：`WR_HOOK_MODE` 放宽不了，`HOME`、`USERPROFILE` 换不了用户目录，`TEMP`、`TMP`、`TMPDIR` 换不了「哪里算临时目录」（固定为系统临时目录：Windows 是用户目录下的 `AppData\Local\Temp` 和 `C:\Windows\Temp`，macOS、Linux 是 `/tmp`、`/var/tmp`，macOS 另加 `/var/folders`）。钩子命令行里的 `--mode`、`--user-config` 是你自己写在设置里的，可以放宽。AI 用写文件工具改 `~/wr.config.json` 会被拦；Bash 命令里同时出现用户目录写法和 `wr.config.json`、又不是只读查看的，也会被拦。红线被放宽时，每次放行都会在标准错误输出里提醒一句。下表里的「宽松档」对两条红线的影响也只在写在用户目录时生效。
 3. 完成首次对齐后看 `hookMode`，再叠加安全守卫的档位 `safetyGuard.profile`：
 
 | 档位 | 凭据零触碰 | 递归强删 | git 硬重置 | 其余规则 |
@@ -140,5 +142,14 @@
 | 变量 | 含义 |
 | --- | --- |
 | `WR_HOOK_MODE` | 临时指定钩子的模式（`observe` / `enforce` / `off`），优先级高于配置；对凭据和递归强删两条红线只能收紧，不能放宽 |
+| `HOME` / `USERPROFILE` / `TEMP` / `TMP` / `TMPDIR` | 钩子判断两条红线时不看这些变量，改了也没用 |
+
+### 钩子命令行参数
+
+| 参数 | 含义 |
+| --- | --- |
+| `--mode observe\|enforce\|off` | 指定这个钩子的模式，优先级最高，可以放宽两条红线 |
+| `--user-config <路径>` | 用户级配置文件放在别处时指定位置，代替真实用户目录下的 `wr.config.json` |
+| `--cwd <目录>` | 指定项目目录（一般不用，钩子从输入里读） |
 | `WR_QUIET_HOST=1` | 临时打开本机静音，效果同 `environment.quietMainMachine: true` |
 | `WR_TEST_RUNNER=1` | 本机静音打开时，你同意在本机跑某条重型测试，就在那条命令前加上它放行 |

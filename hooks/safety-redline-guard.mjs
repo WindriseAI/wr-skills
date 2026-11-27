@@ -3,11 +3,11 @@
 // 通用安全红线守卫（PreToolUse）
 // 纯 Node.js 标准库零依赖，同时兼容 Claude Code 与 Antigravity 钩子协议，支持 observe / enforce 双模式，每条规则可单独设 off / observe / enforce。
 import { existsSync, readFileSync, appendFileSync, statSync } from 'node:fs';
-import { join, resolve, dirname, relative, isAbsolute, posix as posixPath } from 'node:path';
-import { tmpdir, homedir } from 'node:os';
+import { join, resolve, dirname, relative, isAbsolute, parse as parsePath, posix as posixPath } from 'node:path';
+import { homedir, userInfo } from 'node:os';
 
 // <wr-config> 配置读取、模式判定、提示语言与日志脱敏（四个钩子共用同一段，改动时四处保持一致，自测会逐字比对）
-// 查找顺序：先读用户目录 ~/wr.config.json，再从当前目录逐级往上找项目里的 wr.config.json，项目字段覆盖用户目录字段。
+// 查找顺序：先读用户目录 ~/wr.config.json（按系统账户的真实用户目录，不看 HOME 等环境变量），再从当前目录逐级往上找项目里的 wr.config.json，项目字段覆盖用户目录字段。
 // 模式优先级：命令行 --mode > 环境变量 WR_HOOK_MODE > 未完成首次对齐（onboarded 不是 true）按 observe > 配置 hookMode > 默认 observe。
 function readJsonSafe(p) {
   try {
@@ -36,10 +36,24 @@ function findProjectConfig(startDir) {
     dir = parent;
   }
 }
-function loadConfig(cwd, explicitPath) {
+// 真实的用户目录：os.userInfo() 读系统账户信息，不受 HOME / USERPROFILE 环境变量影响，项目改不了它
+function realHome() {
+  try {
+    const h = userInfo().homedir;
+    if (h) return h;
+  } catch {
+    // 个别受限环境拿不到账户信息时退回 homedir()
+  }
+  return homedir();
+}
+// 用户目录配置的位置：钩子命令行写了 --user-config 就用它（命令行是用户自己写在钩子设置里的），否则是真实用户目录下的 wr.config.json
+function userConfigPath(cliUserConfig) {
+  return cliUserConfig ? resolve(String(cliUserConfig)) : join(realHome(), 'wr.config.json');
+}
+function loadConfig(cwd, explicitPath, cliUserConfig) {
   let userCfg = {};
   try {
-    const p = join(homedir(), 'wr.config.json');
+    const p = userConfigPath(cliUserConfig);
     if (existsSync(p)) userCfg = readJsonSafe(p) || {};
   } catch {
     // 受限环境读不到用户目录时忽略
@@ -78,7 +92,8 @@ function redactPath(p) {
 function redactCommand(c) {
   const kept = [];
   let expectProgram = true;
-  for (const raw of String(c || '').trim().split(/\s+/).filter(Boolean)) {
+  // 按 shell 的方式切词：引号里的空格不算分隔，TOKEN="abc def" 是一个词
+  for (const raw of String(c || '').trim().match(/(?:[^\s"']+|"[^"]*"?|'[^']*'?)+/g) || []) {
     if (/^(?:&&|\|\||\||;)$/.test(raw)) {
       kept.push(raw);
       expectProgram = true;
@@ -111,6 +126,7 @@ function parseCliArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--mode' && argv[i + 1]) out.mode = argv[++i];
     if (argv[i] === '--cwd' && argv[i + 1]) out.cwd = argv[++i];
+    if (argv[i] === '--user-config' && argv[i + 1]) out.userConfig = argv[++i];
   }
   return out;
 }
@@ -312,17 +328,45 @@ function credentialHit(norm) {
   return CRED_FILE_RE.test(norm) || CRED_EXT_RE.test(norm) || CRED_NAME_RE.test(norm);
 }
 
+// 通配写法的几种展开：花括号（.{env,envrc}、*.{pem,key}）、单字符类（.[e]nv）；最多展开 32 个
+function globVariants(text) {
+  let out = [text];
+  for (let round = 0; round < 4; round++) {
+    const next = [];
+    let changed = false;
+    for (const v of out) {
+      const m = v.match(/\{([^{}]*)\}/);
+      if (!m) {
+        next.push(v);
+        continue;
+      }
+      changed = true;
+      for (const alt of m[1].split(',')) next.push(v.slice(0, m.index) + alt + v.slice(m.index + m[0].length));
+    }
+    out = next.slice(0, 32);
+    if (!changed) break;
+  }
+  return out.map((v) => v.replace(/\[!?\^?([^\]])[^\]]*\]/g, '$1'));
+}
+
 function isCredentialTarget(text, allowRes) {
   const raw = String(text || '').replace(/\\/g, '/').trim();
   if (!raw) return false;
   // 先归一化 a/../b 这类写法，再判断
   const norm = posixPath.normalize(raw);
   if (allowRes.some((re) => re.test(norm))) return false;
-  if (credentialHit(norm)) return true;
-  // 通配符写法（.env*、**/.env、*.pem）：去掉通配符后再判断一次
-  if (/[*?]/.test(norm)) {
-    const stripped = norm.replace(/\*\*\/?/g, '').replace(/[*?]/g, '');
-    if (stripped && credentialHit(stripped)) return true;
+  // 冒号前缀（git show HEAD:.env、主机名:路径）：冒号后面那段也单独判断
+  const candidates = [norm, ...norm.split(':').slice(1).filter(Boolean)];
+  for (const c of candidates) {
+    for (const v of globVariants(c)) {
+      const n = posixPath.normalize(v);
+      if (credentialHit(n)) return true;
+      // 通配符写法（.env*、**/.env、*.pem）：去掉通配符后再判断一次
+      if (/[*?]/.test(n)) {
+        const stripped = n.replace(/\*\*\/?/g, '').replace(/[*?]/g, '');
+        if (stripped && credentialHit(stripped)) return true;
+      }
+    }
   }
   return false;
 }
@@ -352,7 +396,7 @@ function findHardDeleteTargets(sub) {
   if (!s) return null;
 
   // 脚本里的递归删除：Node 的 fs.rm / rmSync、Python 的 shutil.rmtree、rimraf
-  const scriptDel = s.match(/(?:\bfs(?:\.promises)?\.rm(?:Sync)?|\brmSync|\bshutil\.rmtree|\brimraf(?:\.sync)?)\s*\(([^)]*)/i);
+  const scriptDel = s.match(/(?:\bfs(?:\.promises)?\.rm(?:Sync)?|\.promises\.rm|\brmSync|\bshutil\.rmtree|\brimraf(?:\.sync)?)\s*\(([^)]*)/i);
   if (scriptDel) {
     const lit = scriptDel[1].match(/^\s*(["'`])([^"'`]*)\1/);
     return [lit ? lit[2] : ''];
@@ -370,8 +414,15 @@ function findHardDeleteTargets(sub) {
     return starts.length ? starts : ['.'];
   }
 
-  // 命令名按基名识别：rm、/bin/rm、\rm、rm.exe 都算
-  const rm = s.match(/(?:^|[^\w.-])rm(?:\.exe)?\s+(.+)$/i);
+  // 命令行的 rimraf（含 npx rimraf、pnpm dlx rimraf）：参数里的路径都是删除目标
+  const rimrafCli = s.match(/(?:^|[^\w.-])["']?rimraf(?:\.cmd)?["']?\s+(.+)$/i);
+  if (rimrafCli) {
+    const targets = tokenize(rimrafCli[1]).map(cleanToken).filter((t) => t && !t.startsWith('-'));
+    return targets.length ? targets : [''];
+  }
+
+  // 命令名按基名识别：rm、/bin/rm、\rm、rm.exe、带引号的 "rm" 都算
+  const rm = s.match(/(?:^|[^\w.-])["']?rm(?:\.exe)?["']?\s+(.+)$/i);
   if (rm) {
     const tokens = tokenize(rm[1]).map(cleanToken).filter(Boolean);
     const flags = tokens.filter((t) => t.startsWith('-'));
@@ -408,8 +459,19 @@ function findHardDeleteTargets(sub) {
 }
 
 function expandHome(p) {
-  if (p === '~' || /^~[/\\]/.test(p)) return join(homedir(), p.slice(1));
+  if (p === '~' || /^~[/\\]/.test(p)) return join(realHome(), p.slice(1));
   return p;
+}
+
+// 算作临时目录的固定位置。不用 os.tmpdir()，因为它读 TEMP / TMP / TMPDIR 环境变量，项目能改
+function tempRoots() {
+  const home = realHome();
+  if (process.platform === 'win32') {
+    return [join(home, 'AppData', 'Local', 'Temp'), join(parsePath(home).root || 'C:\\', 'Windows', 'Temp')].map((r) => resolve(r));
+  }
+  const roots = ['/tmp', '/var/tmp'];
+  if (process.platform === 'darwin') roots.push('/private/tmp', '/private/var/tmp', '/var/folders', '/private/var/folders');
+  return roots.map((r) => resolve(r));
 }
 
 function segmentsOf(p) {
@@ -425,16 +487,18 @@ function isInside(child, parent) {
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 }
 
-function isAllowedDeleteTarget(rawTarget, cwd, allowedDirs) {
+function isAllowedDeleteTarget(rawTarget, cwd, allowedDirs, cdSeen = false) {
   const t = cleanToken(rawTarget);
   if (!t) return false;
-  const sysTmp = resolve(tmpdir());
-  // 临时目录变量开头的（$TMPDIR/x、%TEMP%\x）：换成真实临时目录后再归一化，$TMPDIR/../.. 这类穿越不放行
+  const roots = tempRoots();
+  // 临时目录变量开头的（$TMPDIR/x、%TEMP%\x）：换成固定的系统临时目录后再归一化，$TMPDIR/../.. 这类穿越不放行
   const tmpVar = t.match(TMP_VAR_RE);
-  const expanded = tmpVar ? join(sysTmp, t.slice(tmpVar[0].length)) : t;
+  const expanded = tmpVar ? join(roots[0], t.slice(tmpVar[0].length)) : t;
   if (!tmpVar && /[$%]/.test(t)) return false; // 解析不了的变量，按不放行处理
+  // 命令里先 cd 过时，相对路径已经不是相对钩子拿到的工作目录，一律不按放行名单放行
+  if (cdSeen && !tmpVar && !isAbsolute(expanded) && !/^~(?:[/\\]|$)/.test(expanded)) return false;
   const abs = resolve(cwd, expandHome(expanded));
-  if (abs !== sysTmp && isInside(abs, sysTmp)) return true;
+  if (roots.some((r) => abs !== r && isInside(abs, r))) return true;
   if (tmpVar) return false;
   // 根目录下的临时目录：/tmp、/var/tmp、盘符根下的 tmp 或 temp
   const absSegs = segmentsOf(abs.replace(/^[A-Za-z]:/, ''));
@@ -568,7 +632,28 @@ function checkRemoteBareTempDir(cmd, hosts, suffixes, lang) {
   return null;
 }
 
-function checkViolations(paths, commands, cwd, config, lang, toolName = '') {
+// 用户目录配置能放宽红线，所以命令里出现「用户目录 + wr.config.json」且不是只读查看时一律拦
+const HOME_REF_RE = /(?:^|[\s"'=(:,])~(?=[/\\\s"']|$)|\$\{?HOME\}?|%USERPROFILE%|%HOMEPATH%|\$env:(?:USERPROFILE|HOME)|homedir\s*\(|expanduser|Path\.home|os\.environ|getenv/i;
+const READ_ONLY_CMD_RE = /^\s*(?:cat|type|more|less|head|tail|bat|get-content|gc|wc|stat|ls|dir|get-item|test-path)\b/i;
+function writesGuardConfig(cmd, cwd, guardPaths) {
+  const text = String(cmd || '');
+  if (!/wr\.config\.json/i.test(text)) return false;
+  const lowered = text.replace(/\\/g, '/').toLowerCase();
+  const mentionsHome =
+    HOME_REF_RE.test(text) ||
+    guardPaths.some((g) => lowered.includes(g.replace(/\\/g, '/').toLowerCase()) || lowered.includes(dirname(g).replace(/\\/g, '/').toLowerCase() + '/')) ||
+    guardPaths.some((g) => resolve(cwd) === dirname(g));
+  if (!mentionsHome) return false;
+  const subs = splitSubCommands(text).filter((x) => x.trim());
+  const readOnly = !/>|\btee\b/i.test(text) && subs.every((x) => READ_ONLY_CMD_RE.test(x));
+  return !readOnly;
+}
+
+function samePath(a, b) {
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+function checkViolations(paths, commands, cwd, config, lang, toolName = '', guardPaths = []) {
   const sg = config.safetyGuard || {};
   const extraRes = safeRegExps(sg.extraProtectedPatterns);
   // 放宽两条红线的白名单只认用户目录那份配置；项目里写了也忽略
@@ -599,10 +684,17 @@ function checkViolations(paths, commands, cwd, config, lang, toolName = '') {
 
   // 规则 1：凭据零触碰
   // 用户目录的 wr.config.json 是唯一能放宽红线的地方，不让 AI 用写文件工具改它
-  const userCfgPath = resolve(homedir(), 'wr.config.json');
+  const guardMsg = () => tr(
+    lang,
+    '红线拦截（守卫配置保护）：用户目录的 wr.config.json 能放宽安全红线，只能由用户本人修改。请把要改的内容告诉用户，让用户自己改。',
+    'Blocked (guard config): ~/wr.config.json can relax the safety red lines, so only the user may edit it. Tell the user what to change instead.'
+  );
+  for (const cmd of commands) {
+    if (writesGuardConfig(cmd, cwd, guardPaths)) add('credentials', guardMsg());
+  }
   if (/write|edit|create|replace|patch/i.test(toolName)) {
     for (const p of paths) {
-      if (resolve(cwd, expandHome(String(p))) === userCfgPath) {
+      if (guardPaths.some((g) => samePath(resolve(cwd, expandHome(String(p))), g))) {
         add('credentials', tr(
           lang,
           '红线拦截（守卫配置保护）：用户目录的 wr.config.json 能放宽安全红线，只能由用户本人修改。请把要改的内容告诉用户，让用户自己改。',
@@ -615,8 +707,8 @@ function checkViolations(paths, commands, cwd, config, lang, toolName = '') {
     if (isCredentialTarget(p, allowRes)) {
       add('credentials', tr(
         lang,
-        `红线拦截（凭据保护）：禁止读取或修改敏感凭据路径 "${p}"。请改用模板文件或请用户本人处理；确属测试夹具时，把它的路径规则加进 safetyGuard.allowPatterns。`,
-        `Blocked (credentials): reading or writing the sensitive path "${p}" is not allowed. Use a template file or ask the user to handle it; if it is a test fixture, add a pattern to safetyGuard.allowPatterns.`
+        `红线拦截（凭据保护）：禁止读取或修改敏感凭据路径 "${p}"。请改用模板文件或请用户本人处理；确属测试夹具时，把它的路径规则加进用户目录 ~/wr.config.json 的 safetyGuard.allowPatterns（项目里的配置不算）。`,
+        `Blocked (credentials): reading or writing the sensitive path "${p}" is not allowed. Use a template file or ask the user to handle it; if it is a test fixture, add a pattern to safetyGuard.allowPatterns in ~/wr.config.json (project configs do not count).`
       ));
     }
     for (const re of extraRes) {
@@ -642,14 +734,16 @@ function checkViolations(paths, commands, cwd, config, lang, toolName = '') {
     }
 
     // 规则 2：递归强删只放行临时目录与项目内构建产物
+    let cdSeen = false;
     for (const sub of splitSubCommands(cmd)) {
+      if (/^\s*(?:["']?(?:cd|pushd|chdir|set-location|sl)["']?)(?:\s|$)/i.test(sub)) cdSeen = true;
       const targets = findHardDeleteTargets(sub);
       if (!targets) continue;
-      const bad = targets.find((t) => !isAllowedDeleteTarget(t, cwd, allowedDirs));
+      const bad = targets.find((t) => !isAllowedDeleteTarget(t, cwd, allowedDirs, cdSeen));
       if (bad !== undefined) {
         add('hardDelete', tr(
           lang,
-          `红线拦截（防误删保护）：递归强删的目标 "${bad || '(无法解析)'}" 不在临时目录，也不是项目里的构建产物目录。${trashHint(config, lang)}。确属可删的产物目录时，把目录名加进 safetyGuard.allowedDeleteDirs。`,
+          `红线拦截（防误删保护）：递归强删的目标 "${bad || '(无法解析)'}" 不在临时目录，也不是项目里的构建产物目录。${trashHint(config, lang)}。确属可删的产物目录时，把目录名加进用户目录 ~/wr.config.json 的 safetyGuard.allowedDeleteDirs。`,
           `Blocked (recursive delete): the target "${bad || '(unparsed)'}" is neither in a temp directory nor a build-output directory inside the project. ${trashHint(config, lang)}. If it is a disposable output directory, add its name to safetyGuard.allowedDeleteDirs.`
         ));
       }
@@ -735,7 +829,8 @@ function main() {
     process.exit(0);
   }
   const cwd = cli.cwd || parsed.cwd || process.cwd();
-  const config = loadConfig(cwd);
+  const config = loadConfig(cwd, undefined, cli.userConfig);
+  const guardPaths = [...new Set([join(realHome(), 'wr.config.json'), userConfigPath(cli.userConfig)].map((p) => resolve(p)))];
   const modeInfo = resolveMode(cli.mode, config);
   const lang = pickLang(config);
 
@@ -745,7 +840,7 @@ function main() {
   // Glob 这类工具的 pattern 参数就是路径模式
   if (/glob/i.test(parsed.toolName) && parsed.args && typeof parsed.args.pattern === 'string') paths.push(parsed.args.pattern);
 
-  const allHits = checkViolations(paths, commands, cwd, config, lang, parsed.toolName).map((h) => ({ ...h, mode: ruleMode(h.rule, modeInfo, config) }));
+  const allHits = checkViolations(paths, commands, cwd, config, lang, parsed.toolName, guardPaths).map((h) => ({ ...h, mode: ruleMode(h.rule, modeInfo, config) }));
 
   // 红线被用户目录配置放宽时，放行之余给一句提醒；项目配置想放宽红线时，拦截原因里说明已忽略
   const relaxedRed = allHits.filter((h) => RED_LINES.has(h.rule) && h.mode !== 'enforce');

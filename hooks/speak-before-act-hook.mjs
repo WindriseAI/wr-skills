@@ -5,10 +5,10 @@
 // 会话记录同时兼容两种格式：顶层 role/content（Antigravity 等），以及 Claude Code 的 type + message.role/message.content。
 import { existsSync, readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
-import { tmpdir, homedir } from 'node:os';
+import { tmpdir, homedir, userInfo } from 'node:os';
 
 // <wr-config> 配置读取、模式判定、提示语言与日志脱敏（四个钩子共用同一段，改动时四处保持一致，自测会逐字比对）
-// 查找顺序：先读用户目录 ~/wr.config.json，再从当前目录逐级往上找项目里的 wr.config.json，项目字段覆盖用户目录字段。
+// 查找顺序：先读用户目录 ~/wr.config.json（按系统账户的真实用户目录，不看 HOME 等环境变量），再从当前目录逐级往上找项目里的 wr.config.json，项目字段覆盖用户目录字段。
 // 模式优先级：命令行 --mode > 环境变量 WR_HOOK_MODE > 未完成首次对齐（onboarded 不是 true）按 observe > 配置 hookMode > 默认 observe。
 function readJsonSafe(p) {
   try {
@@ -37,10 +37,24 @@ function findProjectConfig(startDir) {
     dir = parent;
   }
 }
-function loadConfig(cwd, explicitPath) {
+// 真实的用户目录：os.userInfo() 读系统账户信息，不受 HOME / USERPROFILE 环境变量影响，项目改不了它
+function realHome() {
+  try {
+    const h = userInfo().homedir;
+    if (h) return h;
+  } catch {
+    // 个别受限环境拿不到账户信息时退回 homedir()
+  }
+  return homedir();
+}
+// 用户目录配置的位置：钩子命令行写了 --user-config 就用它（命令行是用户自己写在钩子设置里的），否则是真实用户目录下的 wr.config.json
+function userConfigPath(cliUserConfig) {
+  return cliUserConfig ? resolve(String(cliUserConfig)) : join(realHome(), 'wr.config.json');
+}
+function loadConfig(cwd, explicitPath, cliUserConfig) {
   let userCfg = {};
   try {
-    const p = join(homedir(), 'wr.config.json');
+    const p = userConfigPath(cliUserConfig);
     if (existsSync(p)) userCfg = readJsonSafe(p) || {};
   } catch {
     // 受限环境读不到用户目录时忽略
@@ -79,7 +93,8 @@ function redactPath(p) {
 function redactCommand(c) {
   const kept = [];
   let expectProgram = true;
-  for (const raw of String(c || '').trim().split(/\s+/).filter(Boolean)) {
+  // 按 shell 的方式切词：引号里的空格不算分隔，TOKEN="abc def" 是一个词
+  for (const raw of String(c || '').trim().match(/(?:[^\s"']+|"[^"]*"?|'[^']*'?)+/g) || []) {
     if (/^(?:&&|\|\||\||;)$/.test(raw)) {
       kept.push(raw);
       expectProgram = true;
@@ -113,6 +128,7 @@ function parseCliArgs(argv) {
     if (argv[i] === '--phase' && argv[i + 1]) out.phase = argv[++i];
     if (argv[i] === '--mode' && argv[i + 1]) out.mode = argv[++i];
     if (argv[i] === '--cwd' && argv[i + 1]) out.cwd = argv[++i];
+    if (argv[i] === '--user-config' && argv[i + 1]) out.userConfig = argv[++i];
   }
   return out;
 }
@@ -347,7 +363,7 @@ function main() {
   if (!parsed) process.exit(0);
 
   const cwd = cli.cwd || parsed.cwd || process.cwd();
-  const config = loadConfig(cwd);
+  const config = loadConfig(cwd, undefined, cli.userConfig);
   const { mode } = resolveMode(cli.mode, config);
   const lang = pickLang(config);
   const phase = (cli.phase || (/stop/i.test(parsed.event) ? 'stop' : 'pre')).toLowerCase();

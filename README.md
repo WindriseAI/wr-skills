@@ -107,9 +107,9 @@ npx -y skills add WindriseAI/wr-skills -g --skill wr-ask-first wr-10x-goal wr-ax
 
 **装上就守两条红线，其余先只记录。** 没有配置文件、或配置里还没有 `"onboarded": true` 时，安全守卫对「碰凭据文件」和「递归强删」（临时目录和项目内构建产物除外）的常见写法直接拦；其余规则只把命中写进 `.wr-hook-observe.jsonl`（记得加进 `.gitignore`）。做完首次对齐后，安全守卫按标准档执行：凭据和递归强删照样拦，git 硬重置只记录，其余跟随 `hookMode`（默认 `observe`）。想全部硬拦就把 `hookMode` 改成 `"enforce"`。
 
-**谁能放宽这两条红线**：只有用户目录的 `~/wr.config.json`（`safetyGuard.rules`、`profile`、`allowPatterns`、`allowedDeleteDirs`、`hookMode`）和你写在钩子设置里的 `--mode`。项目里的 `wr.config.json` 和环境变量 `WR_HOOK_MODE` 只能收紧不能放宽，所以克隆来的陌生仓库带的配置文件关不掉它们；AI 用写文件工具改 `~/wr.config.json` 也会被拦。红线被放宽时，每次放行都会提醒一句。
+**谁能放宽这两条红线**：只有用户目录的 `~/wr.config.json`（`safetyGuard.rules`、`profile`、`allowPatterns`、`allowedDeleteDirs`、`hookMode`），以及你写在钩子设置里的 `--mode`、`--user-config <配置文件路径>`。「用户目录」按系统账户的真实用户目录找，不看 `HOME`、`USERPROFILE` 环境变量；哪里算临时目录也按固定的系统位置判断，不看 `TEMP`、`TMP`、`TMPDIR`。项目里的 `wr.config.json` 和所有环境变量都只能收紧不能放宽，所以克隆来的陌生仓库关不掉它们。AI 用写文件工具改 `~/wr.config.json` 会被拦；Bash 命令里只要同时出现用户目录写法（`~`、`$HOME`、`%USERPROFILE%`、`$env:USERPROFILE`、`homedir()`、`expanduser` 或用户目录的绝对路径）和 `wr.config.json`，又不是 `cat`、`type` 这类只读查看，也一律拦（宁可错拦，例如从用户目录往项目里复制这份配置也会被拦，请用户自己动手）。红线被放宽时，每次放行都会提醒一句。
 
-**它拦得住什么、拦不住什么**：守卫检查工具参数里的路径（包括 Grep、Glob 的通配参数）和命令里出现的词。能拦：读写 `.env`、`~/.ssh`、`~/.aws`、`~/.gnupg`、`.netrc`、`.npmrc`、`.git-credentials`、私钥和证书文件（含 `.bak` 备份）这类写法，以及 `rm -rf`、`/bin/rm`、`Remove-Item -Recurse`、`del /s`、`rd /s`、`find … -delete`、脚本里写死路径的 `fs.rm` / `rmSync` / `shutil.rmtree` / `rimraf`。拦不住：命令里靠通配符展开才出现的路径（`cat .e*`）、递归搜索文件内容（`grep -r API_KEY .`）、用变量拼出来的路径、脚本里没写死路径的删除、改了名或套了别名的命令、宿主自带的权限放行。**它是对常见写法的尽力拦截，不是安全边界**；真要保护，同时配下面的权限拒绝表和操作系统权限（文件权限、单独账户或容器）。
+**它拦得住什么、拦不住什么**：守卫检查工具参数里的路径（包括 Grep、Glob 的通配参数）和命令里出现的词。能拦：读写 `.env`、`~/.ssh`、`~/.aws`、`~/.gnupg`、`.netrc`、`.npmrc`、`.git-credentials`、私钥和证书文件（含 `.bak` 备份）这类写法，以及 `rm -rf`、`/bin/rm`、`Remove-Item -Recurse`、`del /s`、`rd /s`、`find … -delete`、脚本里写死路径的 `fs.rm` / `rmSync` / `shutil.rmtree` / `rimraf`。拦不住：命令里靠通配符展开才出现的路径（`cat .e*`、`.en?`）、拆开或拼出来的文件名（`.e""nv`、`$(echo .env)`、变量拼出来的路径）、递归搜索文件内容（`grep -r API_KEY .`）、脚本里没写死路径的删除、改了名或套了别名的命令、路径拼得看不出是用户目录的 `wr.config.json` 写入、宿主自带的权限放行。另外，命令里先 `cd` 再删相对路径时，放行名单（`dist`、`build` 等）不再生效，会按不放行处理。**它是对常见写法的尽力拦截，不是安全边界**；真要保护，同时配下面的权限拒绝表和操作系统权限（文件权限、单独账户或容器）。
 
 | 脚本 | 触发时机 | 干什么用 |
 | --- | --- | --- |
@@ -225,6 +225,7 @@ wr-skills/
 ├── examples/                # 配置模板与字段说明、首次对齐原文、AGENTS 模板、钩子挂载与权限拒绝表示例
 ├── .claude-plugin/          # Claude Code 插件市场配置
 ├── LICENSE                  # 文档与技能内容：CC BY-NC 4.0
+├── LICENSING.md             # 每类文件归哪种授权的对照表
 └── LICENSE-MIT              # 代码：MIT
 ```
 
@@ -232,7 +233,7 @@ wr-skills/
 
 仓库里分两种东西，授权不一样。
 
-**代码是 MIT，可以随便用，包括商用。** 指所有可执行脚本：`hooks/` 下的钩子和自测、`skills/*/scripts/` 下的检查脚本、`docs/*/src/` 下的出图脚本，每个文件开头都标了 `SPDX-License-Identifier: MIT`，全文见 [LICENSE-MIT](LICENSE-MIT)。拿去改、合进自己的项目、放进收费产品都行，保留版权声明即可。
+**代码是 MIT，可以随便用，包括商用。** 指所有可执行脚本：`hooks/` 下的钩子和自测、`skills/*/scripts/` 下的检查脚本、`docs/*/src/` 下的出图脚本，每个文件开头都标了 `SPDX-License-Identifier: MIT`；`examples/` 下叫你复制进项目的配置模板（`*.json`）也按 MIT 算。全文见 [LICENSE-MIT](LICENSE-MIT)，每个文件归哪种授权见 [LICENSING.md](LICENSING.md)。拿去改、合进自己的项目、放进收费产品都行，保留版权声明即可。
 
 **文档和技能内容是 CC BY-NC 4.0 加作者额外授权。** 指 Skill（`SKILL.md`）、提示词清单、README 等说明文档和配图，按 [CC BY-NC 4.0](LICENSE)（署名-非商业性使用 4.0 国际）授权，转载、修改、分享时注明作者 Windrise AI 和本仓库链接。
 

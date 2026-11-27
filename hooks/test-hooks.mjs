@@ -33,9 +33,12 @@ function baseEnv(extra = {}) {
   };
 }
 
-function runNode(scriptName, args = [], stdinObj = null, envExtra = {}) {
+// 钩子按系统账户的真实用户目录找 ~/wr.config.json，不看 HOME 环境变量；测试里用 --user-config 指定一份
+// （路径取 envExtra.HOME 下的 wr.config.json，没给就是沙盒里的空目录），opts.noUserConfig 时不传，用来验证环境变量伪造无效
+function runNode(scriptName, args = [], stdinObj = null, envExtra = {}, opts = {}) {
   const input = stdinObj == null ? '' : (typeof stdinObj === 'string' ? stdinObj : JSON.stringify(stdinObj));
-  return spawnSync(process.execPath, [join(HOOKS_DIR, scriptName), ...args], {
+  const userCfg = opts.noUserConfig ? [] : ['--user-config', join(envExtra.HOME || sandboxHome, 'wr.config.json')];
+  return spawnSync(process.execPath, [join(HOOKS_DIR, scriptName), ...args, ...userCfg], {
     input,
     encoding: 'utf8',
     cwd: sandbox,
@@ -433,6 +436,67 @@ try {
       assert.equal(call('Bash', { command: 'cat ~/' + name }), 2, name);
     }
     assert.equal(call('Bash', { command: 'cat ~/backup/id_ed25519.pub' }), 0, '公钥放行');
+  });
+
+  test('复审 B1：用 HOME、USERPROFILE、TEMP、TMPDIR 伪造家目录或临时目录，放宽不了两条红线', () => {
+    const fakeHomeCfg = homeWith({ onboarded: true, safetyGuard: { rules: { credentials: 'off', hardDelete: 'off' } } });
+    const p = makeProject(null);
+    const noFlag = { noUserConfig: true };
+    const r1 = runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: p }, fakeHomeCfg, noFlag);
+    assert.equal(r1.status, 2, '伪造的 HOME 里的放宽配置不算');
+    const fakeTmp = { TEMP: fakeHome, TMP: fakeHome, TMPDIR: fakeHome };
+    assert.equal(runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], bash('rm -rf ~/Documents/x', fakeProj), { ...delEnv, ...fakeTmp }).status, 2);
+    assert.equal(runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], bash('rm -rf $TMPDIR/Documents', fakeProj), { ...delEnv, ...fakeTmp }).status, 0, '$TMPDIR 展开成固定的系统临时目录，不按环境变量的值');
+    const rootTmp = { TEMP: fakeRoot, TMP: fakeRoot, TMPDIR: fakeRoot };
+    assert.equal(runNode('safety-redline-guard.mjs', ['--mode', 'enforce'], bash('rm -rf ' + join(fakeRoot, 'home'), fakeProj), { ...delEnv, ...rootTmp }).status, 2);
+  });
+
+  test('复审 B2：Bash 里写、改、移动、覆盖用户目录的 wr.config.json 一律拦，只读查看放行', () => {
+    const p = makeProject(null);
+    const cfg = 'wr.config.json';
+    const writes = [
+      `echo {} > ~/${cfg}`,
+      `sed -i 's/enforce/off/' ~/${cfg}`,
+      `cp x.json ~/${cfg}`,
+      `mv x.json $HOME/${cfg}`,
+      `echo {} | tee %USERPROFILE%\\${cfg}`,
+      `node -e "require('fs').writeFileSync(require('os').homedir()+'/${cfg}','{}')"`,
+      `python -c "open(__import__('os').path.expanduser('~/${cfg}'),'w').write('{}')"`,
+      `Set-Content -Path $env:USERPROFILE\\${cfg} -Value '{}'`
+    ];
+    for (const c of writes) {
+      const r = runNode('safety-redline-guard.mjs', [], bash(c, p));
+      assert.equal(r.status, 2, c);
+      assert.match(r.stderr, /守卫配置保护/, c);
+    }
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash(`cat ~/${cfg}`, p)).status, 0, '只读查看放行');
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash(`echo {} > ${cfg}`, p)).status, 0, '写项目里的配置照常放行');
+  });
+
+  test('复审非阻塞：带引号的 rm、cd 之后的相对路径、命令行 rimraf、promises.rm、花括号与冒号前缀的凭据写法都拦', () => {
+    assert.equal(del('"rm" -rf ~/Documents/x'), 2);
+    assert.equal(del("'rm' -rf ~/Documents/x"), 2);
+    assert.equal(del('cd ~/Documents/important && rm -rf dist'), 2);
+    assert.equal(del('rm -rf dist'), 0, '没有 cd 时项目里的 dist 照常放行');
+    assert.equal(del('npx rimraf ~/Documents/x'), 2);
+    assert.equal(del('npx rimraf ./dist'), 0);
+    assert.equal(del(`node -e "require('fs').promises.rm('/srv/x', { recursive: true })"`), 2);
+    const p = makeProject(null);
+    const envName = ['.', 'e', 'n', 'v'].join('');
+    const call = (tool, input) => runNode('safety-redline-guard.mjs', [], { tool_name: tool, tool_input: input, cwd: p }).status;
+    assert.equal(call('Bash', { command: 'git show HEAD:' + envName }), 2);
+    assert.equal(call('Glob', { pattern: '.{env,envrc}' }), 2);
+    assert.equal(call('Grep', { pattern: 'x', glob: '*.{pem,key}' }), 2);
+    assert.equal(call('Bash', { command: 'cat .[e]nv' }), 2);
+    assert.equal(call('Glob', { pattern: 'src/**/*.{ts,tsx}' }), 0);
+  });
+
+  test('复审非阻塞：引号里带空格的环境变量值不会漏进观察日志', () => {
+    const p = makeProject({ ...ONBOARDED, hookMode: 'observe' });
+    runNode('safety-redline-guard.mjs', [], bash('TOKEN="abc def-SECRET2" git reset --hard', p));
+    const log = readLog(p);
+    assert.match(log, /TOKEN=…/);
+    assert.ok(!log.includes('SECRET2') && !log.includes('abc def'), log);
   });
 
   // ========== 三、evidence-before-pass-gate ==========

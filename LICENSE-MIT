@@ -22,10 +22,13 @@ SOFTWARE.
 
 ---
 
-Scope: this MIT license covers the executable code in this repository, i.e.
-every file that carries the header "SPDX-License-Identifier: MIT" (the hooks
-and their tests under hooks/, the scripts under skills/*/scripts/, and the
-scripts under docs/*/src/). All other content (Skills, SKILL.md files, prompt
-checklists, README and other documentation, images) remains under
-CC BY-NC 4.0 as stated in LICENSE, together with the author's additional
-permission described in README.md.
+Scope: this MIT license covers the code in this repository:
+- every file that carries the header "SPDX-License-Identifier: MIT" (the hooks
+  and their tests under hooks/, the scripts under skills/*/scripts/, and the
+  scripts under docs/*/src/);
+- the configuration templates meant to be copied into your own projects:
+  examples/*.json (JSON cannot carry a license header).
+All other content (Skills, SKILL.md files, prompt checklists, README and other
+documentation, examples/*.md, images, fixtures) remains under CC BY-NC 4.0 as
+stated in LICENSE, together with the author's additional permission. See
+LICENSING.md for the full file-to-license table.

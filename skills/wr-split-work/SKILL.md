@@ -1,6 +1,6 @@
 ---
 name: wr-split-work
-description: 多工作树无重叠并行派活。总协调人只拆活、查证、审回执与合并，不亲自写业务代码；一活一棵独立 git worktree 并切死独占文件白名单；按四档通用难度从本地配置路由模型；先砍废包做减法压小体积，再靠数据版式分离与多路并发提速；附通用 git worktree 与 Orca 双路实操。用户要并行拆任务、派多个代理同时开发、防止多会话改同一文件冲突，或要压小产物与加速构建时使用。
+description: 多工作树无重叠并行派活。总协调人只拆活、查证、审回执与合并，不亲自写业务代码；一活一棵独立 git worktree 并划清独占文件白名单；按四档通用难度从本地配置路由模型；先砍废包做减法压小体积，再靠数据版式分离与多路并发提速；附通用 git worktree 与 Orca 双路实操。用户要并行拆任务、派多个代理同时开发、防止多会话改同一文件冲突，或要压小产物与加速构建时使用。
 ---
 
 # wr-split-work 多工作树无重叠并行派活
@@ -28,7 +28,7 @@ description: 多工作树无重叠并行派活。总协调人只拆活、查证�
 8. 项目类型：这个项目是网页或桌面界面、命令行或库、后端服务，还是官网营销站？有没有线上用户（有的话排错时会先只读查日志、把反馈归批）？官网是否允许 AI 训练爬虫？（自动探测类型；没有线上用户；允许搜索爬虫，训练爬虫由用户定）写入 `project.kind`（`web-ui` / `cli-lib` / `backend` / `marketing-site` / `other`）、`project.hasOnlineUsers`、`geo.languages`、`geo.region`、`geo.crawlerPolicy`（`allow-all` / `block-training` / `custom`）。
 <!-- wr-onboarding:end -->
 
-本技能主要用到第 2 题（`tools.orca` 决定走路线 A 还是 B）、第 3 题（`modelTiers` 全部留空就是单模型模式）和第 4 题（`workflow.parallel`、`workflow.defaultBranch`、`workflow.branchPrefix`）。
+本技能主要用到第 2 题（`tools.orca` 决定走路线 A 还是 B）、第 3 题（`modelTiers` 全部留空就是单模型模式）和第 4 题（`workflow.team`、`workflow.parallel`、`workflow.defaultBranch`、`workflow.branchPrefix`）。
 
 ## 五条核心纪律
 
@@ -84,6 +84,8 @@ description: 多工作树无重叠并行派活。总协调人只拆活、查证�
 
 ### 路线 A 通用 `git worktree` 并行（适用所有命令行与编辑器）
 
+**先看 `workflow.team`。** 为 `team` 时不要照下面第 3 步在本地建集成分支直接合并：各分支推到远端后分别发合并请求，走完评审再合；第 3 步只适用于 `solo`（默认）。
+
 ```bash
 # 0. 默认分支取 workflow.defaultBranch，没写就自动探测（下面用 BASE 代替）
 BASE=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')
@@ -97,7 +99,6 @@ git worktree add ../wt-test -b feat/real-tests "$BASE"
 # 2. 在各自工作树分别启动独立的 Agent 会话并喂入任务书
 
 # 3. 全部收齐回执后在主仓新建集成分支按顺序合入
-#    workflow.team 为 team 时不在本地直接合：各分支推上去分别发合并请求，走评审后再合
 git checkout -b integrate/wave-1 "$BASE"
 git merge --no-ff feat/data-layer
 git merge --no-ff feat/ui-layout
