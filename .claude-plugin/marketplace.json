@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Windrise AI 的中文 AI Skills 合集与软件工程实战工具箱。",
-    "version": "2.1.0"
+    "version": "2.2.0"
   },
   "plugins": [
     {
@@ -30,16 +30,6 @@
       "skills": ["./skills/wr-geo"]
     },
     {
-      "name": "wr-10x-goal",
-      "description": "定十倍目标并堵死作弊与假通过。交代清楚上下文后追求十倍速度（用十分之一时间分路跑完）、对比十个现成方案与压小十倍体积冗余，并禁止靠删功能、假返回值、跳过慢路径或改弱断言凑指标。",
-      "source": "./",
-      "strict": false,
-      "version": "1.0.0",
-      "category": "engineering",
-      "keywords": ["10x", "performance", "anti-cheat", "benchmark", "chinese"],
-      "skills": ["./skills/wr-10x-goal"]
-    },
-    {
       "name": "wr-ask-first",
       "description": "动手前先挑刺并问清需求。搜齐十个现成开源方案对比体积与协议，当面指出泄密与逻辑矛盾隐患，再用决策树分轮追问并写入 docs/SPEC.md。",
       "source": "./",
@@ -50,8 +40,18 @@
       "skills": ["./skills/wr-ask-first"]
     },
     {
+      "name": "wr-10x-goal",
+      "description": "定十倍目标并堵死作弊与假通过。交代清楚上下文后追求十倍速度（用十分之一时间分路跑完）、对比十个现成方案与压小十倍体积冗余，并禁止靠删功能、假返回值、跳过慢路径或改弱断言凑指标。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "engineering",
+      "keywords": ["10x", "performance", "anti-cheat", "benchmark", "chinese"],
+      "skills": ["./skills/wr-10x-goal"]
+    },
+    {
       "name": "wr-axiomatic-design",
-      "description": "提取功能需求做下三角解耦。用 MIT 公理设计画出功能需求与设计参数矩阵，通过重排顺序和抽取唯一真源消掉反向耦合后再并行开发。",
+      "description": "提取功能需求做下三角解耦。用 MIT 公理设计画出功能需求与设计参数矩阵，通过重排顺序和抽取唯一真源消掉反向耦合后再多路并行。",
       "source": "./",
       "strict": false,
       "version": "1.0.0",
@@ -61,53 +61,13 @@
     },
     {
       "name": "wr-split-work",
-      "description": "多工作树无重叠并行派活。协调人只拆活审回执不写代码，每条子线独占一棵 git worktree 与文件白名单，先砍废包瘦身再按四档难度多路并行。",
+      "description": "多工作区无重叠并行派活。协调人只拆活审回执不写代码，每条子线独占一棵 git worktree 与文件白名单，先砍废包瘦身再按模型特点与思考强度多路并行。",
       "source": "./",
       "strict": false,
       "version": "1.0.0",
       "category": "engineering",
       "keywords": ["worktree", "parallel", "orchestration", "multi-agent", "chinese"],
       "skills": ["./skills/wr-split-work"]
-    },
-    {
-      "name": "wr-ux-craft",
-      "description": "界面省心规矩与跟手动效设计。按只点默认按钮的新手视角过八条省心规矩和十二种状态动效，加上斜向防误触走廊、点击锁定、任意条数扩容与二三阶影响检查。",
-      "source": "./",
-      "strict": false,
-      "version": "1.0.0",
-      "category": "design",
-      "keywords": ["ux", "motion", "interaction", "responsive", "chinese"],
-      "skills": ["./skills/wr-ux-craft"]
-    },
-    {
-      "name": "wr-skeptic-audit",
-      "description": "三席物理隔离独立盲审。合并后开三个全新只读会话，分别由禁读源码用户查交互与文案，再由老兵工程师按八项清单审 diff。",
-      "source": "./",
-      "strict": false,
-      "version": "1.0.0",
-      "category": "engineering",
-      "keywords": ["audit", "review", "readonly", "skeptic", "chinese"],
-      "skills": ["./skills/wr-skeptic-audit"]
-    },
-    {
-      "name": "wr-real-qa",
-      "description": "改动全覆盖真路径验收。做改动文件到行为测试映射并硬禁未覆盖与零用例，用反向改写业务的突变探针抓假绿水测试，扫浏览器裁切遮挡并在连败两次时停手查根因。",
-      "source": "./",
-      "strict": false,
-      "version": "1.0.0",
-      "category": "testing",
-      "keywords": ["qa", "testing", "mutation", "playwright", "chinese"],
-      "skills": ["./skills/wr-real-qa"]
-    },
-    {
-      "name": "wr-plain-cn",
-      "description": "去机器腔平实中文写作。动笔前核实至少五件具体动作或物件细节，零脑补心理戏，禁用破折号、翻案句、提示性冒号与黑话并过二十二项自查。",
-      "source": "./",
-      "strict": false,
-      "version": "1.0.0",
-      "category": "writing",
-      "keywords": ["writing", "copywriting", "chinese", "plain-language"],
-      "skills": ["./skills/wr-plain-cn"]
     },
     {
       "name": "wr-hook-forge",
@@ -120,23 +80,52 @@
       "skills": ["./skills/wr-hook-forge"]
     },
     {
+      "name": "wr-real-qa",
+      "description": "改动全覆盖真路径验收。做改动文件到行为测试映射并硬禁未覆盖与零用例，用反向改写业务的突变探针抓假绿水测试，扫浏览器裁切遮挡并在连败两次时停手查根因。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "testing",
+      "keywords": ["qa", "testing", "mutation", "playwright", "chinese"],
+      "skills": ["./skills/wr-real-qa"]
+    },
+    {
+      "name": "wr-skeptic-audit",
+      "description": "三席物理隔离独立盲审。合并后开三个全新只读会话，分别由禁读源码用户查交互与文案，再由老兵工程师按八项清单审 diff。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "engineering",
+      "keywords": ["audit", "review", "readonly", "skeptic", "chinese"],
+      "skills": ["./skills/wr-skeptic-audit"]
+    },
+    {
+      "name": "wr-ux-craft",
+      "description": "界面省心规矩与跟手动效设计。按只点默认按钮的新手视角过八条省心规矩和十二种状态动效，加上斜向防误触走廊、点击锁定、任意条数扩容与二三阶影响检查。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "design",
+      "keywords": ["ux", "motion", "interaction", "responsive", "chinese"],
+      "skills": ["./skills/wr-ux-craft"]
+    },
+    {
       "name": "wr-engineering",
-      "description": "风起软件工程 9 件套一键全装（包含十倍目标防作弊、挑刺立据、下三角解耦、多工作树并行、交互动效、三席盲审、真路径验收、平实中文与确定性钩子）。",
+      "description": "风起软件工程 8 个成熟技能一键全装，按开工前准备（挑刺问清、十倍目标防作弊、下三角解耦）、开工与多路并行（多工作区并行、拦截钩子）、跑通功能与排错验收（真路径验收、三席盲审）到功能稳后界面打磨（交互与动效）顺序编排。",
       "source": "./",
       "strict": false,
       "version": "1.0.0",
       "category": "engineering",
       "keywords": ["engineering", "workflow", "bundle", "chinese"],
       "skills": [
-        "./skills/wr-10x-goal",
         "./skills/wr-ask-first",
+        "./skills/wr-10x-goal",
         "./skills/wr-axiomatic-design",
         "./skills/wr-split-work",
-        "./skills/wr-ux-craft",
-        "./skills/wr-skeptic-audit",
+        "./skills/wr-hook-forge",
         "./skills/wr-real-qa",
-        "./skills/wr-plain-cn",
-        "./skills/wr-hook-forge"
+        "./skills/wr-skeptic-audit",
+        "./skills/wr-ux-craft"
       ]
     }
   ]

@@ -521,18 +521,20 @@ try {
     assert.match(readFileSync(join(sandbox, '.wr-hook-observe.jsonl'), 'utf8'), /防碰撞/);
   });
 
-  test('copy-and-privacy-lint: 拦截 AI 塑料黑话与推销词（漏勺/焊死/主推技能/九件套）', () => {
+  test('copy-and-privacy-lint: 拦截新增禁用黑话、推销词与旧并行措辞', () => {
     const slangDoc = join(sandbox, 'slang.md');
     const badText = [
       `抓出五处${['漏', '勺'].join('')}`,
       `把流程${['焊', '死'].join('')}在一起`,
       `四个核心${['主', '推', '技', '能'].join('')}`,
-      `推荐整套${['九', '件', '套'].join('')}`
+      `推荐整套${['九', '件', '套'].join('')}`,
+      `先做${['分', '桌'].join('')}并行`,
+      `禁止${['多', '桌'].join('')}改同一文件`
     ].join('\n');
     writeFileSync(slangDoc, badText, 'utf8');
     const rBad = runNode('copy-and-privacy-lint.mjs', ['--cwd', sandbox, 'slang.md']);
     assert.equal(rBad.status, 1);
-    assert.match(rBad.stdout, /命中 4 处/);
+    assert.match(rBad.stdout, /命中 6 处/);
   });
 
   test('copy-and-privacy-lint: 钩子脚本自身通过文风与隐私扫描（0 命中）', () => {
