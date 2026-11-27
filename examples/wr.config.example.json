@@ -2,6 +2,7 @@
   "onboarded": false,
   "hookMode": "observe",
   "observeLogPath": ".wr-hook-observe.jsonl",
+  "observeLogDetail": "redacted",
   "environment": {
     "machine": "single",
     "heavyTestsOnMainMachine": "ask",
@@ -74,6 +75,7 @@
     ]
   },
   "speakBeforeAct": {
+    "preAction": "hint",
     "checkStopResponse": true,
     "stopPatterns": []
   },

@@ -6,9 +6,9 @@ import { existsSync, readFileSync, writeFileSync, appendFileSync, mkdirSync } fr
 import { join, resolve, dirname } from 'node:path';
 import { tmpdir, homedir } from 'node:os';
 
-// <wr-config> 配置读取与模式判定（四个钩子共用同一段，改动时四处保持一致，自测会逐字比对）
+// <wr-config> 配置读取、模式判定、提示语言与日志脱敏（四个钩子共用同一段，改动时四处保持一致，自测会逐字比对）
 // 查找顺序：先读用户目录 ~/wr.config.json，再从当前目录逐级往上找项目里的 wr.config.json，项目字段覆盖用户目录字段。
-// 模式优先级：命令行 --mode > 环境变量 WR_HOOK_MODE > 未完成首次对齐（onboarded 不是 true）一律 observe > 配置 hookMode > 默认 observe。
+// 模式优先级：命令行 --mode > 环境变量 WR_HOOK_MODE > 未完成首次对齐（onboarded 不是 true）按 observe > 配置 hookMode > 默认 observe。
 function readJsonSafe(p) {
   try {
     return JSON.parse(readFileSync(p, 'utf8'));
@@ -53,6 +53,31 @@ function resolveMode(cliMode, config) {
   if (explicit) return { mode: String(explicit).toLowerCase(), explicit: true };
   if (config.onboarded !== true) return { mode: 'observe', explicit: false };
   return { mode: String(config.hookMode || 'observe').toLowerCase(), explicit: false };
+}
+// 提示语言：language.output 为 en 或 en-* 时用英文，其余（含 auto、没写）用中文
+function pickLang(config) {
+  const out = String((config.language && config.language.output) || '').toLowerCase();
+  return out === 'en' || out.startsWith('en-') ? 'en' : 'zh';
+}
+function tr(lang, zh, en) {
+  return lang === 'en' ? en : zh;
+}
+// 观察日志默认脱敏：路径只留最后一段，命令只留程序名和不带值的开关；observeLogDetail 写 full 才记完整内容
+function logFull(config) {
+  return String(config.observeLogDetail || '').toLowerCase() === 'full';
+}
+function redactPath(p) {
+  const parts = String(p || '').replace(/\\/g, '/').split('/').filter(Boolean);
+  return parts.length > 1 ? '…/' + parts[parts.length - 1] : String(p || '');
+}
+function redactCommand(c) {
+  const tokens = String(c || '').trim().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return '';
+  const kept = [redactPath(tokens[0]), ...tokens.slice(1).filter((t) => /^-{1,2}[A-Za-z][\w-]*$/.test(t))];
+  return kept.join(' ') + ' …';
+}
+function redactQuoted(text) {
+  return String(text || '').replace(/"([^"]*)"/g, (m, inner) => `"${redactPath(inner)}"`);
 }
 // </wr-config>
 
@@ -195,7 +220,7 @@ function markRemindedTurn(sessionId, turnKey) {
   }
 }
 
-function checkPreSpeak(parsed) {
+function checkPreSpeak(parsed, lang) {
   const msgs = loadMessages(parsed);
   if (!msgs || msgs.length === 0) return null; // fail-open
 
@@ -212,7 +237,11 @@ function checkPreSpeak(parsed) {
     return null; // 同一轮最多提醒一次，避免卡死
   }
   markRemindedTurn(parsed.sessionId, turnKey);
-  return '先应声再动手提醒：收到用户消息后，请先用一两句平实的话说明收到了什么、打算怎么做，再调用工具（本轮只提醒这一次）。';
+  return tr(
+    lang,
+    '先应声再动手提醒：收到用户消息后，请先用一两句平实的话说明收到了什么、打算怎么做，再调用工具（本轮只提醒这一次）。',
+    'Speak-before-act reminder: after a new user message, first say in a sentence or two what you received and what you plan to do, then call tools (reminded once per turn).'
+  );
 }
 
 function lastResponseText(parsed) {
@@ -249,13 +278,17 @@ function buildStopRules(config) {
   return rules;
 }
 
-function checkStopResponse(text, rules) {
+function checkStopResponse(text, rules, lang) {
   if (!rules.length) return null;
   const clean = stripCodeBlocks(text);
   if (!clean.trim()) return null;
   const hits = rules.filter((r) => r.re.test(clean)).map((r) => r.label);
   if (hits.length === 0) return null;
-  return `收尾检查命中：${hits.join('、')}。请按项目约定改写这段回复后再结束。`;
+  return tr(
+    lang,
+    `收尾检查命中：${hits.join('、')}。请按项目约定改写这段回复后再结束。`,
+    `End-of-reply check matched: ${hits.join(', ')}. Rewrite the reply to follow the project's rules before finishing.`
+  );
 }
 
 function recordObserve(cwd, config, phase, reason) {
@@ -263,7 +296,7 @@ function recordObserve(cwd, config, phase, reason) {
   try {
     appendFileSync(
       resolve(cwd, logRel),
-      JSON.stringify({ ts: new Date().toISOString(), hook: 'speak-before-act-hook', phase, mode: 'observe', reason }) + '\n',
+      JSON.stringify({ ts: new Date().toISOString(), hook: 'speak-before-act-hook', phase, mode: 'observe', reason: logFull(config) ? reason : redactQuoted(reason) }) + '\n',
       'utf8'
     );
   } catch {
@@ -290,50 +323,52 @@ function main() {
   const cwd = cli.cwd || parsed.cwd || process.cwd();
   const config = loadConfig(cwd);
   const { mode } = resolveMode(cli.mode, config);
+  const lang = pickLang(config);
   const phase = (cli.phase || (/stop/i.test(parsed.event) ? 'stop' : 'pre')).toLowerCase();
-
-  if (mode === 'off') {
+  const allowOut = () => {
     if (parsed.protocol === 'agy') process.stdout.write(phase === 'stop' ? '{}\n' : JSON.stringify({ decision: 'allow' }) + '\n');
     process.exit(0);
-  }
+  };
+
+  if (mode === 'off') allowOut();
 
   // Stop 钩子已经让 AI 续写过一次时直接放行，防止死循环
-  if (phase === 'stop' && parsed.stopHookActive) {
-    if (parsed.protocol === 'agy') process.stdout.write('{}\n');
-    process.exit(0);
-  }
+  if (phase === 'stop' && parsed.stopHookActive) allowOut();
 
   let reason = null;
   try {
     if (phase === 'pre') {
-      reason = checkPreSpeak(parsed);
+      reason = checkPreSpeak(parsed, lang);
     } else if (phase === 'stop') {
       const enabled = !config.speakBeforeAct || config.speakBeforeAct.checkStopResponse !== false;
-      if (enabled) reason = checkStopResponse(lastResponseText(parsed), buildStopRules(config));
+      if (enabled) reason = checkStopResponse(lastResponseText(parsed), buildStopRules(config), lang);
     }
   } catch {
     reason = null; // fail-open
   }
 
-  if (phase === 'stop' && parsed.protocol === 'agy') {
-    if (reason) {
-      recordObserve(cwd, config, phase, reason);
-    }
-    process.stdout.write('{}\n');
-    process.exit(0);
-  }
+  if (!reason) allowOut();
 
-  if (!reason) {
-    if (parsed.protocol === 'agy') {
-      process.stdout.write(JSON.stringify({ decision: 'allow' }) + '\n');
-    }
-    process.exit(0);
+  // Antigravity 的 Stop 阶段只记录
+  if (phase === 'stop' && parsed.protocol === 'agy') {
+    recordObserve(cwd, config, phase, reason);
+    allowOut();
   }
 
   if (mode !== 'enforce') {
     recordObserve(cwd, config, phase, reason);
+    allowOut();
+  }
+
+  // enforce 下的「先应声」默认只给软提示：放行这次工具调用，同时把提醒塞进 AI 的上下文；
+  // speakBeforeAct.preAction 写 block 才拒绝这次调用
+  const preAction = String((config.speakBeforeAct && config.speakBeforeAct.preAction) || 'hint').toLowerCase();
+  if (phase === 'pre' && preAction !== 'block') {
     if (parsed.protocol === 'agy') {
+      recordObserve(cwd, config, phase, reason);
       process.stdout.write(JSON.stringify({ decision: 'allow' }) + '\n');
+    } else {
+      process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: reason } }) + '\n');
     }
     process.exit(0);
   }

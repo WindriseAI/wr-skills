@@ -6,8 +6,9 @@
 | --- | --- |
 | `wr.config.example.json` | 配置全集模板。技能第一次启用时会先做首次对齐，把你的答案写成项目根目录的 `wr.config.json`；也可以手动复制改名 |
 | `onboarding-step0.md` | 每个 SKILL.md 开头「第 0 步 首次对齐」的原文，八道题和默认值都在里面 |
-| `hooks.claude.json` / `hooks.agy.json` | Claude Code 与 Antigravity 的钩子挂载示例 |
-| `AGENTS.template.md` | 项目协作总纲模板（完整档写法） |
+| `hooks.claude.json` / `hooks.agy.json` | Claude Code 与 Antigravity 的钩子挂载示例。Claude Code 版用 `${CLAUDE_PROJECT_DIR}` 定位脚本，Git Bash 和 PowerShell 下都能直接用；全局安装时换成脚本的绝对路径 |
+| `claude-permissions.example.json` | Claude Code 权限拒绝表示例，把最危险的禁读路径再挡一道，和钩子互不依赖。合并进 `.claude/settings.json` 的 `permissions` 段 |
+| `AGENTS.template.md` | 项目协作总纲模板，分轻量、标准、完整三档，挑一档留下 |
 | `acceptance.example.json` | 验收单示例，配合 `hooks/evidence-before-pass-gate.mjs` 使用 |
 
 ## 配置文件放在哪
@@ -17,7 +18,7 @@
 ## 钩子怎么决定拦不拦
 
 1. 命令行参数 `--mode observe|enforce|off` 最优先，其次是环境变量 `WR_HOOK_MODE`。
-2. 都没给时，配置里没有 `"onboarded": true`（包括根本没有配置文件），**全部钩子只记录不拦截**，凭据和强删也一样。首次对齐写完配置之后才开始按下面的规则拦。
+2. 都没给时，配置里没有 `"onboarded": true`（包括根本没有配置文件），**只有凭据零触碰和递归强删两条红线照样硬拦**，其余规则只记录不拦。这两条在对齐前也可以用 `safetyGuard.rules` 单独改成 `observe` 或 `off`。首次对齐写完配置之后按下面的规则拦。
 3. 完成首次对齐后看 `hookMode`，再叠加安全守卫的档位 `safetyGuard.profile`：
 
 | 档位 | 凭据零触碰 | 递归强删 | git 硬重置 | 其余规则 |
@@ -34,9 +35,10 @@
 
 | 字段 | 默认值 | 含义 |
 | --- | --- | --- |
-| `onboarded` | `false` | 首次对齐做完后由 AI 写成 `true`。不是 `true` 时钩子只记录不拦，技能每次启用都会先问一遍八道题 |
+| `onboarded` | `false` | 首次对齐做完后由 AI 写成 `true`。不是 `true` 时除凭据和递归强删两条红线外，钩子只记录不拦，技能每次启用都会先问一遍八道题 |
 | `hookMode` | `observe` | 完成对齐后钩子的总模式：`observe` 只记录，`enforce` 硬拦，`off` 全关 |
-| `observeLogPath` | `.wr-hook-observe.jsonl` | 观察日志路径（相对项目根）。日志里有完整命令和路径，记得加进 `.gitignore` |
+| `observeLogPath` | `.wr-hook-observe.jsonl` | 观察日志路径（相对项目根），记得加进 `.gitignore` |
+| `observeLogDetail` | `redacted` | 观察日志默认脱敏：只记规则名、路径最后一段、命令的程序名和不带值的开关，隐私扫描不记命中原文。写 `full` 才记完整命令和路径 |
 
 ### environment 机器与环境（第 1、2 题）
 
@@ -81,7 +83,7 @@
 
 | 字段 | 默认值 | 含义 |
 | --- | --- | --- |
-| `language.output` | `auto` | 回复语言：`auto` 跟随你提问的语言，或写 `zh-CN`、`en` |
+| `language.output` | `auto` | 回复语言：`auto` 跟随你提问的语言，或写 `zh-CN`、`en`。钩子的拦截提示在写 `en` 时用英文，其余情况用中文 |
 
 ### rigor 做事强度（第 6 题）
 
@@ -121,6 +123,7 @@
 | 字段 | 默认值 | 含义 |
 | --- | --- | --- |
 | `evidenceGate.targetFiles` | `["acceptance.json"]` | 实证门禁盯哪些验收单文件名。项目不用验收单时这个钩子可以不挂 |
+| `speakBeforeAct.preAction` | `hint` | 没开口就调工具时怎么办：`hint` 放行这次调用，把提醒塞进 AI 的上下文；`block` 拒绝这次调用（同一轮只提醒一次） |
 | `speakBeforeAct.checkStopResponse` | `true` | 是否启用收尾检查 |
 | `speakBeforeAct.stopPatterns` | `[]` | 收尾检查的规则，字符串正则或 `{ "pattern": "...", "hint": "..." }`。默认为空，也就是什么都不查；提交哈希、会话编号这类内容不会被拦 |
 | `copyLint.extensions` | `.md` `.txt` `.html` `.js` `.mjs` `.ts` `.json` `.css` | 隐私扫描的文件类型 |

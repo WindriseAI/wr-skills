@@ -16,7 +16,7 @@ description: 高频踩坑写成确定性拦截钩子。把零例外的客观硬�
 - 没有这个文件，或者没有 `"onboarded": true`，先把下面 8 题一次发给用户，每题括号里是默认值，并说明「回『好』就全按默认」。用户回「好」或只改了其中几题，其余一律按默认。
 - 收到答复后，把答案连同 `"onboarded": true` 写进项目根目录的 `wr.config.json`（用户要求全局生效就写 `~/wr.config.json`），已有字段保留不动，写完告诉用户写在哪、怎么改。字段全集和说明见 github.com/WindriseAI/wr-skills 的 `examples/README.md`。
 - 用户说「这次先不对齐」，就按默认值办事，不写文件，下次启用时再问。
-- 钩子在 `onboarded` 变成 `true` 之前一律只记录不拦截。
+- 钩子在 `onboarded` 变成 `true` 之前，除了碰凭据和递归强删照样直接拦，其余规则只记录不拦截。
 
 1. 机器与测试环境：只有这一台电脑，还是另有测试机、容器或 CI？跑测试时能不能占用这台电脑的键盘、鼠标和浏览器？（只有一台；耗时长的测试先说预计多久，同意后在本机跑；可以占用）写入 `environment.machine`（`single` / `has-runner`）、`environment.heavyTestsOnMainMachine`（`allow` / `ask` / `deny`）、`environment.quietMainMachine`（`false`）、`environment.remoteHost`（测试机的 ssh 主机名，没有就留空）。
 2. 系统与工具：用什么系统和终端？在哪个 AI 工具里用？有没有装 Orca 多代理工作台？（系统、终端和宿主自动探测；Orca 自动探测）写入 `environment.os`、`environment.shell`、`environment.host`、`tools.orca`。
@@ -36,8 +36,10 @@ description: 高频踩坑写成确定性拦截钩子。把零例外的客观硬�
    - **留在文档**的是需要结合上下文权衡取舍的软原则（架构风格、文案语气、功能优先级）。
    - **写进钩子**的是零例外的客观硬规矩（禁读凭据目录、禁强删主工作区、禁跑 0 条测试报绿、禁带入本机绝对路径或密钥、禁出现已改名的旧产品名、改了契约必须同步版本）。
 2. **先挂 `observe` 观察档，再切 `enforce` 硬拦。**
-   - 新脚本上线第一步先跑 `observe` 模式，命中违规时只追加记录到 `.wr-hook-observe.jsonl` 并正常放行（退出码 `0`），绝不一下子把日常工作流卡死。本仓库的钩子在没有配置文件、或配置里还没有 `"onboarded": true` 时一律按 `observe` 跑。
-   - 观察日志里有完整命令和路径，记得把 `.wr-hook-observe.jsonl` 加进项目的 `.gitignore`。
+   - 新脚本上线第一步先跑 `observe` 模式，命中违规时只追加记录到 `.wr-hook-observe.jsonl` 并正常放行（退出码 `0`），绝不一下子把日常工作流卡死。本仓库的钩子在没有配置文件、或配置里还没有 `"onboarded": true` 时，除了凭据零触碰和递归强删这两条安全红线照样硬拦，其余一律按 `observe` 跑。
+   - 观察日志默认脱敏（只记规则名、路径最后一段和命令的程序名，`observeLogDetail` 写 `full` 才记全），仍建议把 `.wr-hook-observe.jsonl` 加进项目的 `.gitignore`。
+   - 拦截提示按 `language.output` 选中文或英文，写新钩子时也照这个做。
+   - 「提醒」类规则优先用软提示：Claude Code 的 `PreToolUse` 可以不给放行决定、只返回 `hookSpecificOutput.additionalContext`，提醒会进 AI 的上下文而这次调用照常走权限流程；真要拒绝才用退出码 `2`。
    - 真实跑过几轮确认零误报后，把配置里的 `hookMode` 切为 `enforce`，命中即返回非零退出码或拒绝决策并报出精确文件与行号。
 3. **毫秒级、零依赖、可重复运行。**
    - 只使用运行环境自带标准库（例如纯 Node.js `node:fs`、`node:path`、`node:os`），免安装第三方依赖，跨 Windows、macOS、Linux 即拿即用。

@@ -21,7 +21,7 @@
 1. **二分规矩**。软偏好留 `AGENTS.md`，零例外客观硬规矩（安全、证据、路径脱敏、禁词、计数同步）进脚本。
 2. **先挂 `observe` 观察档**。记录命中日志到 `.wr-hook-observe.jsonl` 但不拦断操作，跑一阵核查有没有误伤正常场景。
 3. **补齐三组自测**。覆盖正常放行、`enforce` 拦截（含批量包装参数）和 `observe` 留痕，全部跑绿。
-4. **切 `enforce` 硬拦**。确认 `wr.config.json` 里已有 `"onboarded": true`，再把 `hookMode` 改为 `"enforce"`，违规直接阻断并给出精确行号与替代做法。没有配置文件或还没完成首次对齐时，钩子一律只记录不拦。
+4. **切 `enforce` 硬拦**。确认 `wr.config.json` 里已有 `"onboarded": true`，再把 `hookMode` 改为 `"enforce"`，违规直接阻断并给出精确行号与替代做法。没有配置文件或还没完成首次对齐时，除了凭据零触碰和递归强删两条红线照样拦，其余只记录不拦。
 
 ## 自带 4 个通用钩子
 
@@ -52,4 +52,4 @@ npx -y skills add WindriseAI/wr-skills -g --all
 
 ## 授权
 
-[CC BY-NC 4.0](../../LICENSE)。可以免费学习、使用、分享和修改，须注明作者 Windrise AI 与仓库链接，禁止用于付费课程、训练营或付费资料包等商业用途。
+[CC BY-NC 4.0](../../LICENSE)。个人和团队可以免费使用（包括在公司里用来做自己的工作和项目），可以修改，转载分享时注明作者 Windrise AI 与仓库链接；不可以把这些内容本身拿去卖，例如放进付费课程、训练营、付费资料包或收费产品。拿不准算不算商用，提 [Issue](https://github.com/WindriseAI/wr-skills/issues) 问。本仓库是唯一来源，其他地方的副本以这里为准。

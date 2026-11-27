@@ -1,0 +1,85 @@
+{
+  "name": "example.cn",
+  "root": "https://www.example.cn",
+  "language": {
+    "htmlLang": "zh-CN",
+    "titleCjk": "require",
+    "descriptionLength": [50, 110]
+  },
+  "product": {
+    "name": "示例产品",
+    "alternateName": "Example Product",
+    "email": "hello@example.cn"
+  },
+  "openGraph": {
+    "required": ["og:type", "og:site_name", "og:title", "og:description"],
+    "imageMinWidth": 1200,
+    "imageMinHeight": 630,
+    "twitterCard": "summary_large_image"
+  },
+  "pages": [
+    {
+      "path": "/",
+      "canonical": "https://www.example.cn/",
+      "hreflang": null,
+      "titleContains": ["示例产品"],
+      "descriptionContains": ["示例产品"],
+      "h1": "页面上真实的那一句主标题",
+      "lead": { "contains": "示例产品", "within": 120, "unit": "chars" },
+      "mustContain": ["¥29"]
+    },
+    {
+      "path": "/pricing",
+      "canonical": "https://www.example.cn/pricing",
+      "hreflang": null,
+      "titleContains": ["示例产品"],
+      "descriptionContains": ["示例产品"],
+      "mustContain": ["¥29"]
+    },
+    {
+      "path": "/privacy",
+      "canonical": "https://www.example.cn/privacy",
+      "hreflang": null,
+      "sitemap": true
+    }
+  ],
+  "robots": {
+    "file": "robots.txt"
+  },
+  "sitemap": {
+    "file": "sitemap.xml",
+    "requireLastmod": true
+  },
+  "llmsTxt": {
+    "file": "llms.txt",
+    "firstLine": "# 示例产品",
+    "contains": ["Checked on:", "¥29"]
+  },
+  "structuredData": {
+    "forbidden": ["aggregateRating", "\"review\""],
+    "pages": [
+      {
+        "path": "/",
+        "require": [
+          {
+            "type": "Organization",
+            "fields": ["name", "url", "logo", "email"],
+            "equals": { "name": "示例产品", "email": "hello@example.cn" },
+            "fileFields": ["logo"]
+          },
+          {
+            "type": "WebSite",
+            "fields": ["name", "url", "inLanguage"],
+            "equals": { "inLanguage": "zh-CN" }
+          }
+        ]
+      }
+    ]
+  },
+  "siteWide": {
+    "forbiddenText": [],
+    "forbiddenHtml": [],
+    "noindexPaths": ["404.html"],
+    "forbiddenPaths": ["pricing.html", "pricing/index.html"]
+  }
+}

@@ -5,9 +5,9 @@ import { existsSync, readFileSync, appendFileSync, statSync } from 'node:fs';
 import { join, resolve, dirname, relative, isAbsolute } from 'node:path';
 import { tmpdir, homedir } from 'node:os';
 
-// <wr-config> 配置读取与模式判定（四个钩子共用同一段，改动时四处保持一致，自测会逐字比对）
+// <wr-config> 配置读取、模式判定、提示语言与日志脱敏（四个钩子共用同一段，改动时四处保持一致，自测会逐字比对）
 // 查找顺序：先读用户目录 ~/wr.config.json，再从当前目录逐级往上找项目里的 wr.config.json，项目字段覆盖用户目录字段。
-// 模式优先级：命令行 --mode > 环境变量 WR_HOOK_MODE > 未完成首次对齐（onboarded 不是 true）一律 observe > 配置 hookMode > 默认 observe。
+// 模式优先级：命令行 --mode > 环境变量 WR_HOOK_MODE > 未完成首次对齐（onboarded 不是 true）按 observe > 配置 hookMode > 默认 observe。
 function readJsonSafe(p) {
   try {
     return JSON.parse(readFileSync(p, 'utf8'));
@@ -52,6 +52,31 @@ function resolveMode(cliMode, config) {
   if (explicit) return { mode: String(explicit).toLowerCase(), explicit: true };
   if (config.onboarded !== true) return { mode: 'observe', explicit: false };
   return { mode: String(config.hookMode || 'observe').toLowerCase(), explicit: false };
+}
+// 提示语言：language.output 为 en 或 en-* 时用英文，其余（含 auto、没写）用中文
+function pickLang(config) {
+  const out = String((config.language && config.language.output) || '').toLowerCase();
+  return out === 'en' || out.startsWith('en-') ? 'en' : 'zh';
+}
+function tr(lang, zh, en) {
+  return lang === 'en' ? en : zh;
+}
+// 观察日志默认脱敏：路径只留最后一段，命令只留程序名和不带值的开关；observeLogDetail 写 full 才记完整内容
+function logFull(config) {
+  return String(config.observeLogDetail || '').toLowerCase() === 'full';
+}
+function redactPath(p) {
+  const parts = String(p || '').replace(/\\/g, '/').split('/').filter(Boolean);
+  return parts.length > 1 ? '…/' + parts[parts.length - 1] : String(p || '');
+}
+function redactCommand(c) {
+  const tokens = String(c || '').trim().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return '';
+  const kept = [redactPath(tokens[0]), ...tokens.slice(1).filter((t) => /^-{1,2}[A-Za-z][\w-]*$/.test(t))];
+  return kept.join(' ') + ' …';
+}
+function redactQuoted(text) {
+  return String(text || '').replace(/"([^"]*)"/g, (m, inner) => `"${redactPath(inner)}"`);
 }
 // </wr-config>
 
@@ -125,31 +150,39 @@ function collectAtoms(node, paths, commands) {
 // —— 规则档位 ——
 // 每条规则的模式：off（不查）/ observe（只记录）/ enforce（硬拦）/ follow（跟随 hookMode）。
 // 标准档：凭据与递归强删永远硬拦，git 硬重置只提醒，其余跟随 hookMode；宽松档全部跟随 hookMode 且不查 git 重置；严格档全部硬拦。
+// 首次对齐之前：凭据与递归强删照样硬拦（装守卫就是为了这两条），其余规则只记录。
 const PROFILES = {
   relaxed: { credentials: 'follow', hardDelete: 'follow', gitReset: 'off', quietHost: 'follow', orcaQuote: 'follow', remoteTmp: 'follow' },
   standard: { credentials: 'enforce', hardDelete: 'enforce', gitReset: 'observe', quietHost: 'follow', orcaQuote: 'follow', remoteTmp: 'follow' },
   strict: { credentials: 'enforce', hardDelete: 'enforce', gitReset: 'enforce', quietHost: 'enforce', orcaQuote: 'enforce', remoteTmp: 'enforce' }
 };
+const RED_LINES = new Set(['credentials', 'hardDelete']);
 const VALID_RULE_MODES = new Set(['off', 'observe', 'enforce', 'follow']);
+
+function ruleOverride(name, config) {
+  const sg = config.safetyGuard || {};
+  const v = sg.rules && typeof sg.rules[name] === 'string' ? sg.rules[name].toLowerCase() : '';
+  return VALID_RULE_MODES.has(v) ? v : '';
+}
 
 function ruleMode(name, modeInfo, config) {
   if (modeInfo.mode === 'off') return 'off';
   const sg = config.safetyGuard || {};
-  const rawOverride = sg.rules && typeof sg.rules[name] === 'string' ? sg.rules[name].toLowerCase() : '';
-  const override = VALID_RULE_MODES.has(rawOverride) ? rawOverride : '';
+  const override = ruleOverride(name, config);
   const profile = PROFILES[String(sg.profile || 'standard').toLowerCase()] || PROFILES.standard;
   const base = override || profile[name] || 'follow';
   if (base === 'off') return 'off';
   // 命令行或环境变量显式指定模式时，所有未关闭的规则统一按它执行
   if (modeInfo.explicit) return modeInfo.mode;
-  // 首次对齐之前一律只记录
-  if (config.onboarded !== true) return 'observe';
+  if (config.onboarded !== true) {
+    if (override === 'observe' || override === 'enforce') return override;
+    return RED_LINES.has(name) ? 'enforce' : 'observe';
+  }
   return base === 'follow' ? modeInfo.mode : base;
 }
 
 function ruleExplicitlyOn(name, config) {
-  const sg = config.safetyGuard || {};
-  const v = sg.rules && typeof sg.rules[name] === 'string' ? sg.rules[name].toLowerCase() : '';
+  const v = ruleOverride(name, config);
   return v === 'observe' || v === 'enforce' || v === 'follow';
 }
 
@@ -307,14 +340,15 @@ function isAllowedDeleteTarget(rawTarget, cwd, allowedDirs) {
   return false;
 }
 
-function trashHint(config) {
+function trashHint(config, lang) {
   const custom = config.safetyGuard && config.safetyGuard.trashCommand;
-  if (custom) return `请改用回收站：${custom}`;
+  if (custom) return tr(lang, `请改用回收站：${custom}`, `Move it to the trash instead: ${custom}`);
   if (process.platform === 'win32') {
-    return "请改用回收站（PowerShell：Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory('<路径>','OnlyErrorDialogs','SendToRecycleBin')）";
+    const cmd = "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory('<路径>','OnlyErrorDialogs','SendToRecycleBin')";
+    return tr(lang, `请改用回收站（PowerShell：${cmd}）`, `Move it to the Recycle Bin instead (PowerShell: ${cmd.replace('<路径>', '<path>')})`);
   }
-  if (process.platform === 'darwin') return '请改用回收站（mv <路径> ~/.Trash/）';
-  return '请改用回收站（gio trash <路径>，没有 gio 时可装 trash-cli 用 trash-put <路径>）';
+  if (process.platform === 'darwin') return tr(lang, '请改用回收站（mv <路径> ~/.Trash/）', 'Move it to the trash instead (mv <path> ~/.Trash/)');
+  return tr(lang, '请改用回收站（gio trash <路径>，没有 gio 时可装 trash-cli 用 trash-put <路径>）', 'Move it to the trash instead (gio trash <path>, or trash-put <path> from trash-cli)');
 }
 
 // —— 规则 3：主检出禁毁灭性 Git 重置 ——
@@ -343,7 +377,7 @@ function powershellLike(config) {
   return process.platform === 'win32';
 }
 
-function checkOrcaQuoteSplit(cmd, maxChars) {
+function checkOrcaQuoteSplit(cmd, maxChars, lang) {
   const subs = String(cmd || '').split(/&&|\|\||[;\r\n]/);
   const orcaTargetRe = /^(?:&\s*)?["']?(?:[^"'\s]*[/\\])?orca(?:\.exe|\.cmd)?["']?\s+(?:orchestration\s+(?:send|worker-start)|bot\s+(?:reply|item))\b/i;
   const flagRe = new RegExp('-'.repeat(2) + `(body|spec|comment|text)(?!-file)(?:=|\\s+)(?:'([^']*)'|"([^"]*)"|(\\S+))`, 'gi');
@@ -357,10 +391,18 @@ function checkOrcaQuoteSplit(cmd, maxChars) {
       const singleQuoted = m[2] !== undefined;
       const val = m[2] ?? m[3] ?? m[4] ?? '';
       if (singleQuoted && val.includes('"')) {
-        return `红线拦截（引号防劈裂）：orca 的 --${flag} 单引号参数内含英文双引号，在 PowerShell 下易被劈裂成 Unknown command。请先写入文本文件，改用 --${flag}-file <文件路径> 传入。不需要这条检查时，在 wr.config.json 写 safetyGuard.rules.orcaQuote 为 "off"。`;
+        return tr(
+          lang,
+          `红线拦截（引号防劈裂）：orca 的 --${flag} 单引号参数内含英文双引号，在 PowerShell 下易被劈裂成 Unknown command。请先写入文本文件，改用 --${flag}-file <文件路径> 传入。不需要这条检查时，在 wr.config.json 写 safetyGuard.rules.orcaQuote 为 "off"。`,
+          `Blocked (quote split): the single-quoted orca --${flag} argument contains double quotes, which PowerShell may split into "Unknown command". Write the text to a file and pass --${flag}-file <path>. To disable this check, set safetyGuard.rules.orcaQuote to "off" in wr.config.json.`
+        );
       }
       if (val.length > maxChars) {
-        return `红线拦截（引号防劈裂）：orca 的 --${flag} 内联参数长达 ${val.length} 字（超过 ${maxChars} 字），易触发命令行截断或引号出错。请先写入文本文件，改用 --${flag}-file <文件路径> 传入。阈值可在 safetyGuard.orcaInlineMaxChars 调整。`;
+        return tr(
+          lang,
+          `红线拦截（引号防劈裂）：orca 的 --${flag} 内联参数长达 ${val.length} 字（超过 ${maxChars} 字），易触发命令行截断或引号出错。请先写入文本文件，改用 --${flag}-file <文件路径> 传入。阈值可在 safetyGuard.orcaInlineMaxChars 调整。`,
+          `Blocked (quote split): the inline orca --${flag} argument is ${val.length} characters (limit ${maxChars}) and may be truncated or mis-quoted. Write it to a file and pass --${flag}-file <path>. Adjust the limit with safetyGuard.orcaInlineMaxChars.`
+        );
       }
     }
   }
@@ -383,7 +425,7 @@ function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function checkRemoteBareTempDir(cmd, hosts, suffixes) {
+function checkRemoteBareTempDir(cmd, hosts, suffixes, lang) {
   if (!/\b(?:ssh|scp)(?:\.exe)?\b/i.test(cmd)) return null;
   if (hosts.length && !hosts.some((h) => new RegExp(`(?:^|[\\s@"'])${escapeRegExp(h)}(?:$|[\\s:"'])`, 'i').test(cmd))) {
     return null;
@@ -403,12 +445,16 @@ function checkRemoteBareTempDir(cmd, hosts, suffixes) {
     if (seg.includes('$') || seg.includes('%')) continue;
     if (SIMPLE_FILE_EXT_RE.test(seg)) continue;
     if (suffixRe.test(seg)) continue;
-    return `红线拦截（远端临时目录防碰撞）：远端命令指向没有唯一后缀的共享目录 "tmp/${seg}"，几路任务同时跑容易互相覆盖。请追加任务名或时间戳后缀（例如 /tmp/${seg}-task1-20261126），或改用任务专属的二级子目录。后缀规则可在 safetyGuard.remoteTmpSuffixes 调整，不需要这条检查时写 safetyGuard.rules.remoteTmp 为 "off"。`;
+    return tr(
+      lang,
+      `红线拦截（远端临时目录防碰撞）：远端命令指向没有唯一后缀的共享目录 "tmp/${seg}"，几路任务同时跑容易互相覆盖。请追加任务名或时间戳后缀（例如 /tmp/${seg}-task1-20261126），或改用任务专属的二级子目录。后缀规则可在 safetyGuard.remoteTmpSuffixes 调整，不需要这条检查时写 safetyGuard.rules.remoteTmp 为 "off"。`,
+      `Blocked (remote temp collision): the remote command targets the shared directory "tmp/${seg}" without a unique suffix, so parallel jobs can overwrite each other. Add a task name or timestamp (e.g. /tmp/${seg}-task1-20261126) or use a per-task subdirectory. Tune suffixes with safetyGuard.remoteTmpSuffixes, or set safetyGuard.rules.remoteTmp to "off".`
+    );
   }
   return null;
 }
 
-function checkViolations(paths, commands, cwd, config) {
+function checkViolations(paths, commands, cwd, config, lang) {
   const sg = config.safetyGuard || {};
   const extraRes = safeRegExps(sg.extraProtectedPatterns);
   const allowRes = safeRegExps(sg.allowPatterns);
@@ -437,17 +483,31 @@ function checkViolations(paths, commands, cwd, config) {
   // 规则 1：凭据零触碰
   for (const p of paths) {
     if (isCredentialTarget(p, allowRes)) {
-      add('credentials', `红线拦截（凭据保护）：禁止读取或修改敏感凭据路径 "${p}"。请改用模板文件或请用户本人处理；确属测试夹具时，把它的路径规则加进 safetyGuard.allowPatterns。`);
+      add('credentials', tr(
+        lang,
+        `红线拦截（凭据保护）：禁止读取或修改敏感凭据路径 "${p}"。请改用模板文件或请用户本人处理；确属测试夹具时，把它的路径规则加进 safetyGuard.allowPatterns。`,
+        `Blocked (credentials): reading or writing the sensitive path "${p}" is not allowed. Use a template file or ask the user to handle it; if it is a test fixture, add a pattern to safetyGuard.allowPatterns.`
+      ));
     }
     for (const re of extraRes) {
-      if (re.test(p)) add('credentials', `红线拦截（自定义受保护路径）：路径 "${p}" 命中受保护规则 "${re.source}"。`);
+      if (re.test(p)) {
+        add('credentials', tr(
+          lang,
+          `红线拦截（自定义受保护路径）：路径 "${p}" 命中 safetyGuard.extraProtectedPatterns 里的受保护规则。`,
+          `Blocked (protected path): "${p}" matches a rule in safetyGuard.extraProtectedPatterns.`
+        ));
+      }
     }
   }
   for (const cmd of commands) {
     const tokens = cmd.match(/[^\s"';|&]+/g) || [];
     for (const tok of tokens) {
       if (isCredentialTarget(tok, allowRes)) {
-        add('credentials', `红线拦截（凭据保护）：命令疑似触碰敏感凭据 "${tok}"，已拒绝执行。`);
+        add('credentials', tr(
+          lang,
+          `红线拦截（凭据保护）：命令疑似触碰敏感凭据 "${tok}"，已拒绝执行。`,
+          `Blocked (credentials): the command appears to touch the sensitive path "${tok}".`
+        ));
       }
     }
 
@@ -457,37 +517,53 @@ function checkViolations(paths, commands, cwd, config) {
       if (!targets) continue;
       const bad = targets.find((t) => !isAllowedDeleteTarget(t, cwd, allowedDirs));
       if (bad !== undefined) {
-        add('hardDelete', `红线拦截（防误删保护）：递归强删的目标 "${bad || '(无法解析)'}" 不在临时目录，也不是项目里的构建产物目录。${trashHint(config)}。确属可删的产物目录时，把目录名加进 safetyGuard.allowedDeleteDirs。`);
+        add('hardDelete', tr(
+          lang,
+          `红线拦截（防误删保护）：递归强删的目标 "${bad || '(无法解析)'}" 不在临时目录，也不是项目里的构建产物目录。${trashHint(config, lang)}。确属可删的产物目录时，把目录名加进 safetyGuard.allowedDeleteDirs。`,
+          `Blocked (recursive delete): the target "${bad || '(unparsed)'}" is neither in a temp directory nor a build-output directory inside the project. ${trashHint(config, lang)}. If it is a disposable output directory, add its name to safetyGuard.allowedDeleteDirs.`
+        ));
       }
     }
 
     // 规则 3：主检出禁毁灭性 Git 重置
     const gitDestructiveRe = /\bgit\s+(?:reset\s+--hard|clean\s+-[a-z]*f[a-z]*d|clean\s+-[a-z]*d[a-z]*f|clean\s+-f\s+-d)\b/i;
     if (gitDestructiveRe.test(cmd) && !isWorktreeCheckout(cwd)) {
-      add('gitReset', '红线拦截（主工作区保护）：主检出目录执行 git reset --hard 或 git clean -fd 会丢掉未提交的改动。请先确认没有要保留的改动，或改用 git revert、git stash，或新建独立 git worktree 试验。');
+      add('gitReset', tr(
+        lang,
+        '红线拦截（主工作区保护）：主检出目录执行 git reset --hard 或 git clean -fd 会丢掉未提交的改动。请先确认没有要保留的改动，或改用 git revert、git stash，或新建独立 git worktree 试验。',
+        'Blocked (main checkout): git reset --hard or git clean -fd in the main checkout discards uncommitted work. Confirm nothing needs keeping, or use git revert, git stash, or a separate git worktree.'
+      ));
     }
 
     // 规则 4：本机静音（按 environment.quietMainMachine 或 WR_QUIET_HOST=1 启用，默认关）
     if (quietHost && !allowHeavyRunner) {
       const uiHijackRe = /\b(?:SendKeys|mouse_event|SetCursorPos|xdotool|osascript\s+-e[^\n]*keystroke)\b/i;
       if (uiHijackRe.test(cmd)) {
-        add('quietHost', '红线拦截（本机静音）：已开启本机静音（environment.quietMainMachine），禁止在这台电脑上模拟全局键鼠。需要时请用户临时关掉这个开关。');
+        add('quietHost', tr(
+          lang,
+          '红线拦截（本机静音）：已开启本机静音（environment.quietMainMachine），禁止在这台电脑上模拟全局键鼠。需要时请用户临时关掉这个开关。',
+          'Blocked (quiet host): environment.quietMainMachine is on, so simulating global keyboard or mouse input on this machine is not allowed. Ask the user to turn it off temporarily if needed.'
+        ));
       }
       const heavyTestRe = /\b(?:playwright\s+test|cypress\s+run|electron\s+\.)\b/i;
       if (heavyTestRe.test(cmd)) {
-        add('quietHost', '红线拦截（本机静音）：已开启本机静音（environment.quietMainMachine），这台电脑不直接跑会弹浏览器的端到端测试。请改到测试机、容器或 CI 跑；用户同意在本机跑时，命令前加环境变量 WR_TEST_RUNNER=1。');
+        add('quietHost', tr(
+          lang,
+          '红线拦截（本机静音）：已开启本机静音（environment.quietMainMachine），这台电脑不直接跑会弹浏览器的端到端测试。请改到测试机、容器或 CI 跑；用户同意在本机跑时，命令前加环境变量 WR_TEST_RUNNER=1。',
+          'Blocked (quiet host): environment.quietMainMachine is on, so browser-launching end-to-end tests do not run on this machine. Use a test machine, container or CI; if the user agrees to run it here, prefix the command with WR_TEST_RUNNER=1.'
+        ));
       }
     }
 
     // 规则 5：Orca 长参数与引号防劈裂
     if (orcaOn) {
-      const quoteHit = checkOrcaQuoteSplit(cmd, orcaMax);
+      const quoteHit = checkOrcaQuoteSplit(cmd, orcaMax, lang);
       if (quoteHit) add('orcaQuote', quoteHit);
     }
 
     // 规则 6：远端机器共享裸临时目录
     if (remoteOn) {
-      const remoteTmpHit = checkRemoteBareTempDir(cmd, hosts, suffixes);
+      const remoteTmpHit = checkRemoteBareTempDir(cmd, hosts, suffixes, lang);
       if (remoteTmpHit) add('remoteTmp', remoteTmpHit);
     }
   }
@@ -496,15 +572,19 @@ function checkViolations(paths, commands, cwd, config) {
 
 function recordObserve(cwd, config, payload) {
   const logRel = config.observeLogPath || '.wr-hook-observe.jsonl';
-  const logPath = resolve(cwd, logRel);
+  const full = logFull(config);
   const entry = {
     ts: new Date().toISOString(),
     hook: 'safety-redline-guard',
     mode: 'observe',
-    ...payload
+    toolName: payload.toolName,
+    rule: payload.rule,
+    reason: full ? payload.reason : redactQuoted(payload.reason),
+    paths: full ? payload.paths : payload.paths.map(redactPath),
+    commands: full ? payload.commands : payload.commands.map(redactCommand)
   };
   try {
-    appendFileSync(logPath, JSON.stringify(entry) + '\n', 'utf8');
+    appendFileSync(resolve(cwd, logRel), JSON.stringify(entry) + '\n', 'utf8');
   } catch {
     // 观察日志写入失败时不阻塞流程
   }
@@ -527,12 +607,13 @@ function main() {
   const cwd = cli.cwd || parsed.cwd || process.cwd();
   const config = loadConfig(cwd);
   const modeInfo = resolveMode(cli.mode, config);
+  const lang = pickLang(config);
 
   const paths = [];
   const commands = [];
   collectAtoms(parsed.args, paths, commands);
 
-  const hits = checkViolations(paths, commands, cwd, config)
+  const hits = checkViolations(paths, commands, cwd, config, lang)
     .map((h) => ({ ...h, mode: ruleMode(h.rule, modeInfo, config) }))
     .filter((h) => h.mode !== 'off');
 

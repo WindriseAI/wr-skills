@@ -5,7 +5,7 @@
 - 没有这个文件，或者没有 `"onboarded": true`，先把下面 8 题一次发给用户，每题括号里是默认值，并说明「回『好』就全按默认」。用户回「好」或只改了其中几题，其余一律按默认。
 - 收到答复后，把答案连同 `"onboarded": true` 写进项目根目录的 `wr.config.json`（用户要求全局生效就写 `~/wr.config.json`），已有字段保留不动，写完告诉用户写在哪、怎么改。字段全集和说明见 github.com/WindriseAI/wr-skills 的 `examples/README.md`。
 - 用户说「这次先不对齐」，就按默认值办事，不写文件，下次启用时再问。
-- 钩子在 `onboarded` 变成 `true` 之前一律只记录不拦截。
+- 钩子在 `onboarded` 变成 `true` 之前，除了碰凭据和递归强删照样直接拦，其余规则只记录不拦截。
 
 1. 机器与测试环境：只有这一台电脑，还是另有测试机、容器或 CI？跑测试时能不能占用这台电脑的键盘、鼠标和浏览器？（只有一台；耗时长的测试先说预计多久，同意后在本机跑；可以占用）写入 `environment.machine`（`single` / `has-runner`）、`environment.heavyTestsOnMainMachine`（`allow` / `ask` / `deny`）、`environment.quietMainMachine`（`false`）、`environment.remoteHost`（测试机的 ssh 主机名，没有就留空）。
 2. 系统与工具：用什么系统和终端？在哪个 AI 工具里用？有没有装 Orca 多代理工作台？（系统、终端和宿主自动探测；Orca 自动探测）写入 `environment.os`、`environment.shell`、`environment.host`、`tools.orca`。

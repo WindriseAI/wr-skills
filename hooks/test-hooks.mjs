@@ -76,10 +76,13 @@ try {
   const pemFile = ['server', '.', 'p', 'e', 'm'].join('');
 
   // ========== 一、默认模式与首次对齐（9-1） ==========
-  test('默认模式：没有配置文件时四个钩子都只记录不拦截（9-1）', () => {
+  test('默认模式：没有配置文件时只有凭据和递归强删两条红线硬拦，其余一律只记录（9-1）', () => {
     const r1 = runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: sandbox });
-    assert.equal(r1.status, 0);
-    assert.match(readLog(), /凭据保护/);
+    assert.equal(r1.status, 2);
+    assert.match(r1.stderr, /凭据保护/);
+    const r1b = runNode('safety-redline-guard.mjs', [], bash('git reset --hard HEAD~1'));
+    assert.equal(r1b.status, 0);
+    assert.match(readLog(), /"rule":"gitReset"/);
 
     const doc = { coverageGate: {}, items: [{ id: 'd-1', passes: true, evidence: 'missing.txt' }] };
     const r2 = runNode('evidence-before-pass-gate.mjs', ['--phase', 'pre'], {
@@ -106,14 +109,16 @@ try {
     assert.match(r4.stdout, /模式：observe/);
   });
 
-  test('首次对齐：onboarded 不是 true 时，配置写了 enforce 也只记录；写上 onboarded:true 才硬拦', () => {
+  test('首次对齐：onboarded 不是 true 时，除两条红线外配置写了 enforce 也只记录；写上 onboarded:true 才按 hookMode 硬拦', () => {
+    const quiet = { WR_QUIET_HOST: '1' };
     const notYet = makeProject({ hookMode: 'enforce' });
-    const r1 = runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: notYet });
+    const r1 = runNode('safety-redline-guard.mjs', [], bash('npx playwright test', notYet), quiet);
     assert.equal(r1.status, 0);
-    assert.match(readLog(notYet), /凭据保护/);
+    assert.match(readLog(notYet), /本机静音/);
+    assert.equal(runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: notYet }).status, 2, '凭据在对齐前也硬拦');
 
     const done = makeProject(ONBOARDED);
-    const r2 = runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: done });
+    const r2 = runNode('safety-redline-guard.mjs', [], bash('npx playwright test', done), quiet);
     assert.equal(r2.status, 2);
   });
 
@@ -121,7 +126,8 @@ try {
     const root = makeProject(ONBOARDED);
     const deep = join(root, 'packages', 'app', 'src');
     mkdirSync(deep, { recursive: true });
-    const r1 = runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: deep });
+    const quiet = { WR_QUIET_HOST: '1' };
+    const r1 = runNode('safety-redline-guard.mjs', [], bash('npx playwright test', deep), quiet);
     assert.equal(r1.status, 2, '子目录应读到上层项目配置');
 
     const home2 = join(sandbox, 'home-with-config');
@@ -131,10 +137,11 @@ try {
     const r2 = runNode(
       'safety-redline-guard.mjs',
       [],
-      { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: bare },
-      { HOME: home2, USERPROFILE: home2 }
+      bash('npx playwright test', bare),
+      { HOME: home2, USERPROFILE: home2, ...quiet }
     );
     assert.equal(r2.status, 2, '应读到用户目录配置');
+    assert.equal(runNode('safety-redline-guard.mjs', [], bash('npx playwright test', bare), quiet).status, 0, '没有用户目录配置时只记录');
 
     const override = makeProject({ safetyGuard: { rules: { credentials: 'off' } } });
     const r3 = runNode(
@@ -301,6 +308,58 @@ try {
     assert.equal(runNode('safety-redline-guard.mjs', [], bash(cmdLong, optOut)).status, 0);
   });
 
+  test('safety: 没有配置文件时递归强删照样硬拦，安全规则可在对齐前单独改成只记录', () => {
+    const delNoMode = (command, env = {}) => runNode('safety-redline-guard.mjs', [], bash(command, fakeProj), { ...delEnv, ...env }).status;
+    assert.equal(delNoMode('rm -rf ~/Documents/builder-notes'), 2);
+    assert.equal(delNoMode('rm -rf ./dist'), 0);
+    const soft = makeProject({ safetyGuard: { rules: { credentials: 'observe' } } });
+    assert.equal(runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: soft }).status, 0);
+  });
+
+  test('safety: 观察日志默认脱敏路径和命令参数，observeLogDetail=full 才记完整内容（7-7）', () => {
+    const secretDir = 'very-private-folder';
+    const red = makeProject({ ...ONBOARDED, hookMode: 'observe' });
+    runNode('safety-redline-guard.mjs', [], bash(`git reset --hard HEAD~1 && echo ${secretDir}/notes`, red));
+    const logRed = readLog(red);
+    assert.match(logRed, /"rule":"gitReset"/);
+    assert.doesNotMatch(logRed, new RegExp(secretDir), '默认不记命令参数');
+    assert.match(logRed, /"git --hard …"/);
+
+    const full = makeProject({ ...ONBOARDED, hookMode: 'observe', observeLogDetail: 'full' });
+    runNode('safety-redline-guard.mjs', [], bash(`git reset --hard HEAD~1 && echo ${secretDir}/notes`, full));
+    assert.match(readLog(full), new RegExp(secretDir));
+
+    const lintP = makeProject({ ...ONBOARDED, hookMode: 'observe' });
+    writeFileSync(join(lintP, 'x.md'), ['见 /Users/', 'alice', '/', secretDir, '/a.txt'].join(''), 'utf8');
+    runNode('copy-and-privacy-lint.mjs', ['--cwd', lintP, 'x.md']);
+    const lintLog = readLog(lintP);
+    assert.match(lintLog, /copy-and-privacy-lint/);
+    assert.doesNotMatch(lintLog, new RegExp(secretDir), '隐私扫描日志不回显命中原文');
+  });
+
+  test('language.output 为 en 时四个钩子的提示改用英文（8-1）', () => {
+    const en = makeProject({ ...ONBOARDED, language: { output: 'en' }, speakBeforeAct: { preAction: 'block' } });
+    const r1 = runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: en });
+    assert.equal(r1.status, 2);
+    assert.ok(r1.stderr.startsWith('Blocked (credentials)'), r1.stderr);
+    const r2 = runNode('evidence-before-pass-gate.mjs', ['--phase', 'pre'], {
+      session_id: 'sess-en-' + Date.now(),
+      tool_name: 'Write',
+      tool_input: { file_path: 'acceptance.json', content: JSON.stringify({ items: [{ id: 'e1', passes: true, evidence: '' }] }) },
+      cwd: en
+    });
+    assert.equal(r2.status, 2);
+    assert.match(r2.stderr, /^Evidence gate/);
+    const r3 = runNode('speak-before-act-hook.mjs', ['--phase', 'pre'], { session_id: 'sess-en-sp-' + Date.now(), transcript: [{ role: 'user', content: 'fix it' }], cwd: en });
+    assert.match(r3.stderr, /^Speak-before-act reminder/);
+    writeFileSync(join(en, 'k.md'), ['/Users/', 'alice', '/x'].join(''), 'utf8');
+    const r4 = runNode('copy-and-privacy-lint.mjs', ['--cwd', en, 'k.md']);
+    assert.match(r4.stdout, /local absolute path/);
+    assert.match(r4.stdout, /Scanned 1 files/);
+    const zh = makeProject({ ...ONBOARDED, language: { output: 'auto' } });
+    assert.match(runNode('safety-redline-guard.mjs', [], { tool_name: 'Read', tool_input: { file_path: fakeSsh }, cwd: zh }).stderr, /凭据保护/);
+  });
+
   // ========== 三、evidence-before-pass-gate ==========
   const evFile = join(sandbox, 'qa-log.txt');
   writeFileSync(evFile, 'all 12 real tests passed\n', 'utf8');
@@ -373,13 +432,27 @@ try {
 
   // ========== 四、speak-before-act-hook ==========
   const sessionSpeak = 'sess-speak-' + Date.now();
-  test('speak: 未开口直接调工具首次提醒拦截，同轮第二次放行不卡死', () => {
+  const hintOf = (r) => {
+    assert.equal(r.status, 0);
+    const out = JSON.parse(r.stdout.trim());
+    assert.equal(out.hookSpecificOutput.hookEventName, 'PreToolUse');
+    assert.equal('permissionDecision' in out.hookSpecificOutput, false, '软提示不替用户做放行决定');
+    return out.hookSpecificOutput.additionalContext;
+  };
+  test('speak: enforce 下没开口就调工具只给软提示不拒绝（9-6），同轮第二次不再提示', () => {
     const payload = { session_id: sessionSpeak, turn_id: 'turn-1', transcript: [{ role: 'user', content: '帮我修一下构建脚本' }], cwd: sandbox };
     const r1 = runNode('speak-before-act-hook.mjs', ['--phase', 'pre', '--mode', 'enforce'], payload);
-    assert.equal(r1.status, 2);
-    assert.match(r1.stderr, /先应声再动手/);
+    assert.match(hintOf(r1), /先应声再动手/);
     const r2 = runNode('speak-before-act-hook.mjs', ['--phase', 'pre', '--mode', 'enforce'], payload);
     assert.equal(r2.status, 0);
+    assert.equal(r2.stdout.trim(), '');
+  });
+
+  test('speak: speakBeforeAct.preAction 写 block 时才拒绝这次工具调用', () => {
+    const p = makeProject({ ...ONBOARDED, speakBeforeAct: { preAction: 'block' } });
+    const r = runNode('speak-before-act-hook.mjs', ['--phase', 'pre'], { session_id: 'sess-block-' + Date.now(), transcript: [{ role: 'user', content: '改一下' }], cwd: p });
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /先应声再动手/);
   });
 
   test('speak: 已开口再调工具放行', () => {
@@ -440,8 +513,7 @@ try {
   test('speak: 兼容 Claude Code 记录格式，没开口就调工具会提醒（3-4 实测复现，原先 exit 0 不触发）', () => {
     const t = writeCcTranscript('cc-silent.jsonl', [...ccNoise, ccUser('u1', '帮我修一下构建脚本'), ccThinking('a1'), ccToolUse('a2', 'toolu_01'), ccToolResult('u2', 'toolu_01'), ...ccNoise]);
     const r = ccPre('cc-silent-' + Date.now(), t);
-    assert.equal(r.status, 2);
-    assert.match(r.stderr, /先应声再动手/);
+    assert.match(hintOf(r), /先应声再动手/);
   });
 
   test('speak: Claude Code 格式下先说了话再调工具放行，工具结果不算用户新消息', () => {
@@ -599,7 +671,7 @@ try {
     assert.deepEqual(JSON.parse(rAllow.stdout.trim()), { decision: 'allow' });
   });
 
-  test('agy: speak-before-act-hook PreToolUse 放行/拦截，Stop 阶段只留痕返回 {}', () => {
+  test('agy: speak-before-act-hook PreToolUse 默认放行留痕、preAction=block 才拒绝，Stop 阶段只留痕返回 {}', () => {
     const convSpeak = 'conv-agy-speak-' + Date.now();
     const rPreAllow = runNode('speak-before-act-hook.mjs', ['--phase', 'pre', '--mode', 'enforce'], {
       hookEventName: 'PreToolUse',
@@ -623,7 +695,18 @@ try {
       cwd: sandbox
     });
     assert.equal(rPreDeny.status, 0);
-    assert.equal(JSON.parse(rPreDeny.stdout.trim()).decision, 'deny');
+    assert.deepEqual(JSON.parse(rPreDeny.stdout.trim()), { decision: 'allow' }, '默认软提示：放行并记录');
+
+    const pBlock = makeProject({ ...ONBOARDED, speakBeforeAct: { preAction: 'block' } });
+    const rPreBlock = runNode('speak-before-act-hook.mjs', ['--phase', 'pre'], {
+      hookEventName: 'PreToolUse',
+      conversationId: convSpeak + '-b',
+      turnId: 'turn-agy-3',
+      toolCall: { name: 'read_file', args: { Path: 'qa-log.txt' } },
+      transcript: [{ role: 'user', content: '再看一遍' }],
+      cwd: pBlock
+    });
+    assert.equal(JSON.parse(rPreBlock.stdout.trim()).decision, 'deny');
 
     const p = makeProject({ ...ONBOARDED, speakBeforeAct: { stopPatterns: ['内部代号X'] } });
     const rStopBad = runNode('speak-before-act-hook.mjs', ['--phase', 'stop'], {
@@ -647,6 +730,13 @@ try {
     assert.ok(Array.isArray(g.PostToolUse) && g.PostToolUse.length >= 1);
     assert.ok(Array.isArray(g.Stop) && g.Stop.length >= 1);
     assert.equal('matcher' in g.Stop[0], false);
+  });
+
+  test('examples: hooks.claude.json 用 ${CLAUDE_PROJECT_DIR} 定位脚本，不依赖当前目录（2-3）', () => {
+    const cfg = JSON.parse(readFileSync(join(REPO_DIR, 'examples', 'hooks.claude.json'), 'utf8'));
+    const cmds = Object.values(cfg.hooks).flat().flatMap((g) => g.hooks.map((h) => h.command));
+    assert.ok(cmds.length >= 5);
+    for (const c of cmds) assert.ok(/^node "\$\{CLAUDE_PROJECT_DIR\}\/hooks\/[a-z-]+\.mjs"/.test(c), c);
   });
 
   test('examples: wr.config.example.json 默认未对齐、observe 起步、标准安全档、只盯 acceptance.json', () => {
@@ -683,6 +773,22 @@ try {
     for (const f of ['README.md', 'README.en.md']) {
       assert.doesNotMatch(readFileSync(join(REPO_DIR, f), 'utf8'), /plain-cn/);
     }
+  });
+
+  test('docs: 三席人设中性、第二席是老编辑，README 以四个核心技能为主、不写死十个，AGENTS 模板分三档', () => {
+    const read = (p) => readFileSync(join(REPO_DIR, p), 'utf8');
+    const files = ['README.md', 'README.en.md', 'skills/wr-skeptic-audit/SKILL.md', 'docs/wr-skeptic-audit/README.md', 'docs/wr-skeptic-audit/提示词清单.md', 'examples/AGENTS.template.md', '.claude-plugin/marketplace.json'];
+    for (const p of files) assert.doesNotMatch(read(p), /极懒|老兵|初中生/, p);
+    assert.match(read('skills/wr-skeptic-audit/SKILL.md'), /## 第二席 老编辑替普通读者把关文案/);
+    assert.match(read('docs/wr-skeptic-audit/提示词清单.md'), /## 第二席 老编辑替普通读者把关文案/);
+    const readme = read('README.md');
+    assert.doesNotMatch(readme, /### wr-sunkit|hero.png/);
+    for (const n of ['wr-ask-first', 'wr-10x-goal', 'wr-axiomatic-design', 'wr-skeptic-audit']) assert.match(readme, new RegExp('### ' + n + ' '));
+    assert.doesNotMatch(readme, /十个现成|10 个现成|搜齐十|搜齐 10/);
+    const agents = read('examples/AGENTS.template.md');
+    for (const t of ['## 轻量档', '## 标准档', '## 完整档']) assert.ok(agents.includes(t), t);
+    JSON.parse(read('skills/wr-geo/references/config-example-zh.json'));
+    JSON.parse(read('examples/claude-permissions.example.json'));
   });
 
   console.log(`\n全部 ${passed} 项钩子自测通过。`);

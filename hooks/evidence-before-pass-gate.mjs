@@ -15,9 +15,9 @@ function parseCliArgs(argv) {
   return out;
 }
 
-// <wr-config> 配置读取与模式判定（四个钩子共用同一段，改动时四处保持一致，自测会逐字比对）
+// <wr-config> 配置读取、模式判定、提示语言与日志脱敏（四个钩子共用同一段，改动时四处保持一致，自测会逐字比对）
 // 查找顺序：先读用户目录 ~/wr.config.json，再从当前目录逐级往上找项目里的 wr.config.json，项目字段覆盖用户目录字段。
-// 模式优先级：命令行 --mode > 环境变量 WR_HOOK_MODE > 未完成首次对齐（onboarded 不是 true）一律 observe > 配置 hookMode > 默认 observe。
+// 模式优先级：命令行 --mode > 环境变量 WR_HOOK_MODE > 未完成首次对齐（onboarded 不是 true）按 observe > 配置 hookMode > 默认 observe。
 function readJsonSafe(p) {
   try {
     return JSON.parse(readFileSync(p, 'utf8'));
@@ -62,6 +62,31 @@ function resolveMode(cliMode, config) {
   if (explicit) return { mode: String(explicit).toLowerCase(), explicit: true };
   if (config.onboarded !== true) return { mode: 'observe', explicit: false };
   return { mode: String(config.hookMode || 'observe').toLowerCase(), explicit: false };
+}
+// 提示语言：language.output 为 en 或 en-* 时用英文，其余（含 auto、没写）用中文
+function pickLang(config) {
+  const out = String((config.language && config.language.output) || '').toLowerCase();
+  return out === 'en' || out.startsWith('en-') ? 'en' : 'zh';
+}
+function tr(lang, zh, en) {
+  return lang === 'en' ? en : zh;
+}
+// 观察日志默认脱敏：路径只留最后一段，命令只留程序名和不带值的开关；observeLogDetail 写 full 才记完整内容
+function logFull(config) {
+  return String(config.observeLogDetail || '').toLowerCase() === 'full';
+}
+function redactPath(p) {
+  const parts = String(p || '').replace(/\\/g, '/').split('/').filter(Boolean);
+  return parts.length > 1 ? '…/' + parts[parts.length - 1] : String(p || '');
+}
+function redactCommand(c) {
+  const tokens = String(c || '').trim().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return '';
+  const kept = [redactPath(tokens[0]), ...tokens.slice(1).filter((t) => /^-{1,2}[A-Za-z][\w-]*$/.test(t))];
+  return kept.join(' ') + ' …';
+}
+function redactQuoted(text) {
+  return String(text || '').replace(/"([^"]*)"/g, (m, inner) => `"${redactPath(inner)}"`);
 }
 // </wr-config>
 
@@ -158,33 +183,33 @@ function extractWriteTargets(args) {
   return items;
 }
 
-function validateAcceptanceJson(doc, cwd, readSet) {
+function validateAcceptanceJson(doc, cwd, readSet, lang) {
   if (!doc || typeof doc !== 'object') return null;
   const gate = doc.coverageGate || {};
   const waiver = String(gate.waiverReason || '').trim();
   if (!waiver) {
     if (Array.isArray(gate.unmappedFiles) && gate.unmappedFiles.length > 0) {
-      return `实证门禁拦截：存在未映射测试的改动文件（UNMAPPED: ${gate.unmappedFiles.join(', ')}），请补齐行为测试，或经用户本人确认后填写 waiverReason。`;
+      return tr(lang, `实证门禁拦截：存在未映射测试的改动文件（UNMAPPED: ${gate.unmappedFiles.join(', ')}），请补齐行为测试，或经用户本人确认后填写 waiverReason。`, `Evidence gate: changed files have no mapped tests (UNMAPPED: ${gate.unmappedFiles.join(', ')}). Add behaviour tests, or fill in waiverReason only after the user confirms.`);
     }
     if (Array.isArray(gate.zeroRunSuites) && gate.zeroRunSuites.length > 0) {
-      return `实证门禁拦截：存在执行 0 条用例的测试套件（ZERO_RUN: ${gate.zeroRunSuites.join(', ')}），零条用例不得报绿。`;
+      return tr(lang, `实证门禁拦截：存在执行 0 条用例的测试套件（ZERO_RUN: ${gate.zeroRunSuites.join(', ')}），零条用例不得报绿。`, `Evidence gate: some test suites ran zero cases (ZERO_RUN: ${gate.zeroRunSuites.join(', ')}). Zero cases cannot count as passing.`);
     }
   }
   const items = Array.isArray(doc.items) ? doc.items : [];
   for (const item of items) {
     if (!item || item.passes !== true) continue;
     const ev = String(item.evidence || '').trim();
-    const label = item.id || item.title || '未命名条目';
+    const label = item.id || item.title || tr(lang, '未命名条目', 'unnamed item');
     if (!ev) {
-      return `实证门禁拦截：条目 "${label}" 试图标为 passes: true，但 evidence 字段为空。`;
+      return tr(lang, `实证门禁拦截：条目 "${label}" 试图标为 passes: true，但 evidence 字段为空。`, `Evidence gate: item "${label}" is marked passes: true but its evidence field is empty.`);
     }
     const abs = resolve(cwd, ev);
     if (!existsSync(abs)) {
-      return `实证门禁拦截：条目 "${label}" 引用的证据文件 "${ev}" 在磁盘上不存在。`;
+      return tr(lang, `实证门禁拦截：条目 "${label}" 引用的证据文件 "${ev}" 在磁盘上不存在。`, `Evidence gate: item "${label}" cites evidence file "${ev}", which does not exist on disk.`);
     }
     const key = normPath(ev, cwd);
     if (!readSet.has(key)) {
-      return `实证门禁拦截：条目 "${label}" 引用的证据文件 "${ev}" 本会话尚未亲眼读取，请先读完证据再标记通过。`;
+      return tr(lang, `实证门禁拦截：条目 "${label}" 引用的证据文件 "${ev}" 本会话尚未亲眼读取，请先读完证据再标记通过。`, `Evidence gate: item "${label}" cites "${ev}", which has not been read in this session. Read the evidence before marking it as passing.`);
     }
   }
   return null;
@@ -195,7 +220,13 @@ function recordObserve(cwd, config, payload) {
   try {
     appendFileSync(
       resolve(cwd, logRel),
-      JSON.stringify({ ts: new Date().toISOString(), hook: 'evidence-before-pass-gate', mode: 'observe', ...payload }) + '\n',
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        hook: 'evidence-before-pass-gate',
+        mode: 'observe',
+        file: logFull(config) ? payload.file : redactPath(payload.file),
+        reason: logFull(config) ? payload.reason : redactQuoted(payload.reason)
+      }) + '\n',
       'utf8'
     );
   } catch {
@@ -222,6 +253,7 @@ function main() {
   const cwd = cli.cwd || parsed.cwd || process.cwd();
   const config = loadConfig(cwd);
   const { mode } = resolveMode(cli.mode, config);
+  const lang = pickLang(config);
   const phase = (cli.phase || (/post/i.test(parsed.event) ? 'post' : 'pre')).toLowerCase();
 
   if (phase === 'post') {
@@ -277,8 +309,8 @@ function main() {
     }
 
     const reason = doc
-      ? validateAcceptanceJson(doc, cwd, readSet)
-      : '实证门禁拦截：向验收单局部写入 passes: true 时无法核验完整证据结构，请先读取证据文件后整体更新验收单。';
+      ? validateAcceptanceJson(doc, cwd, readSet, lang)
+      : tr(lang, '实证门禁拦截：向验收单局部写入 passes: true 时无法核验完整证据结构，请先读取证据文件后整体更新验收单。', 'Evidence gate: a partial edit writes passes: true, so the full evidence cannot be checked. Read the evidence files, then rewrite the whole acceptance file.');
 
     if (reason) {
       if (mode === 'off') break;

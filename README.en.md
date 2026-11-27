@@ -10,16 +10,37 @@
 
 Works with Claude Code, Codex, Cursor, Antigravity, claude.ai, and other agents that support Skills. Every Skill also includes a standalone prompt checklist in Chinese for web chats that do not support Skills.
 
+> This repository is the single source of truth for these Skills, prompts and hooks. Copies in Feishu docs or articles are excerpts; when they differ, the repository wins.
+
 ## Four Core Recommended Skills
 
-Start with these four core engineering skills, ordered from pre-build planning to independent review.
+### wr-ask-first: challenge and clarify before coding
 
-| Skill | Plain-language summary |
-| --- | --- |
-| [wr-ask-first](docs/wr-ask-first/README.md) | Challenge requirement flaws and compare existing open-source options (5 by default) before coding, surface leaks/contradictions/second-order risks, and resolve unknowns via a decision tree into `docs/SPEC.md` |
-| [wr-10x-goal](docs/wr-10x-goal/README.md) | Set 10x speed (0.1x parallel wall-clock time) and 10x size-reduction targets after clarifying context, compare 10 existing solutions before building, and strictly block reward hacking (dropped features, hardcoded fakes, skipped slow paths, or weakened assertions) |
-| [wr-axiomatic-design](docs/wr-axiomatic-design/README.md) | Extract independent FRs and DPs into a design matrix, eliminate reverse coupling via reordering and a single source of truth until lower-triangular before parallel splits |
-| [wr-skeptic-audit](docs/wr-skeptic-audit/README.md) | Three physically isolated read-only reviews after merge: a no-source user audits click steps, a no-source reader audits plain copy, and a fresh engineer audits the diff against 8 checks |
+- **Problem**: the AI starts coding immediately, then you find the direction was wrong, an existing library was ignored, or the requirements contradict each other.
+- **Say**: "Don't write code yet. Poke holes in this and pin down the spec first."
+- **You get**: a risk list (leaks, context bloat, contradictions, knock-on effects), a comparison of existing open-source options (configurable, 5 by default), and a `docs/SPEC.md` you have signed off.
+- [Docs](docs/wr-ask-first/README.md) · [Prompt checklist](docs/wr-ask-first/提示词清单.md)
+
+### wr-10x-goal: 10x targets with anti-cheat rules
+
+- **Problem**: optimisation only squeezes out 10%, or the AI games the metric by dropping features, hardcoding results or weakening assertions.
+- **Say**: "This export takes ten minutes. Optimise it with a 10x target, no cutting features."
+- **You get**: physical lower bounds for disk, memory and network, 10x speed and size targets, a before/after measurement under the same conditions, and a check against four anti-cheat rules.
+- [Docs](docs/wr-10x-goal/README.md) · [Prompt checklist](docs/wr-10x-goal/提示词清单.md)
+
+### wr-axiomatic-design: decouple into a lower-triangular design
+
+- **Problem**: changing one module breaks others, and parallel branches collide on merge.
+- **Say**: "These modules keep tangling. Decouple them before we split the work."
+- **You get**: an FR × DP dependency matrix, an implementation order with reverse coupling removed, and which parts can run in parallel versus which shared sources must be locked first.
+- [Docs](docs/wr-axiomatic-design/README.md) · [Prompt checklist](docs/wr-axiomatic-design/提示词清单.md)
+
+### wr-skeptic-audit: three isolated blind reviews
+
+- **Problem**: the session that wrote the code almost always approves its own work.
+- **Say**: "This batch is merged. Run the three-seat blind review."
+- **You get**: a new user reviewing interaction, a veteran editor reviewing copy on behalf of ordinary readers, and a senior engineer reviewing the diff read-only, merged into one table of blockers, suggestions and won't-fix items, each with a screenshot location, quote or `file:line`.
+- [Docs](docs/wr-skeptic-audit/README.md) · [Prompt checklist](docs/wr-skeptic-audit/提示词清单.md)
 
 Install all four core skills at once:
 
@@ -29,27 +50,27 @@ npx -y skills add WindriseAI/wr-skills -g --skill wr-ask-first wr-10x-goal wr-ax
 
 ## Skills
 
-### Windrise Software Engineering Suite (8 Battle-Tested Skills Ordered Pre-Build to UI Polish)
+### Windrise Software Engineering Suite (8 Skills Ordered Pre-Build to UI Polish)
 
-Ordered strictly by workflow stage: Pre-build (`wr-ask-first`, `wr-10x-goal`, `wr-axiomatic-design`) → Parallel Build & Guards (`wr-split-work`, `wr-hook-forge`) → QA & Blind Audit (`wr-real-qa`, `wr-skeptic-audit`) → UI Polish (`wr-ux-craft`).
+Ordered by workflow stage: Pre-build (`wr-ask-first`, `wr-10x-goal`, `wr-axiomatic-design`) → Parallel Build & Guards (`wr-split-work`, `wr-hook-forge`) → QA & Blind Audit (`wr-real-qa`, `wr-skeptic-audit`) → UI Polish (`wr-ux-craft`).
 
 | Stage | Skill | What it does |
 | --- | --- | --- |
-| Pre-build | [wr-ask-first](docs/wr-ask-first/README.md) | Challenge requirement flaws and compare existing open-source options (5 by default) before coding, expose leak/context/contradiction/second-order risks, and lock answers in `docs/SPEC.md` |
-| Pre-build | [wr-10x-goal](docs/wr-10x-goal/README.md) | Set 10x speed and 10x size-reduction targets after clarifying context, compare 10 existing solutions before building, and lock down anti-cheat bans against dropped features, fake returns, skipped slow paths, or weakened test assertions |
-| Pre-build | [wr-axiomatic-design](docs/wr-axiomatic-design/README.md) | Extract independent FRs and DPs into a design matrix, eliminate reverse coupling via reordering and a single source of truth until lower-triangular before parallel splits |
-| Parallel Build & Guards | [wr-split-work](docs/wr-split-work/README.md) | Split parallel work across isolated `git worktree` workspaces with exclusive file lists, coordinator-only planning and verification, model routing by subscription and reasoning tier, and upfront bundle slimming |
-| Parallel Build & Guards | [wr-hook-forge](docs/wr-hook-forge/README.md) | Turn repeated mistakes into zero-dependency Node.js guard hooks with Claude Code and Antigravity protocol support, starting in `observe` mode before switching to `enforce` |
-| QA & Blind Audit | [wr-real-qa](docs/wr-real-qa/README.md) | Verify real execution paths with changed-file-to-test mapping (blocking `UNMAPPED` and `ZERO_RUN`), mutation probes for weak tests, `getBoundingClientRect` clipping/occlusion scans, and two-strike stops |
-| QA & Blind Audit | [wr-skeptic-audit](docs/wr-skeptic-audit/README.md) | Run three physically isolated read-only reviews after merge: no-source interaction click-step audit, no-source plain-copy audit, and fresh veteran engineer diff audit |
-| UI Polish | [wr-ux-craft](docs/wr-ux-craft/README.md) | Polish UI with 8 zero-effort UX rules, 7 state-driven motion checks, diagonal hover safe corridors with click-lock, elastic data scaling, and 2nd/3rd-order impact checks |
+| Pre-build | [wr-ask-first](docs/wr-ask-first/README.md) | Challenge, compare existing options and lock a spec before coding (core) |
+| Pre-build | [wr-10x-goal](docs/wr-10x-goal/README.md) | 10x performance and size targets with anti-cheat rules (core) |
+| Pre-build | [wr-axiomatic-design](docs/wr-axiomatic-design/README.md) | Remove reverse coupling with a design matrix before deciding on parallel work (core) |
+| Parallel Build & Guards | [wr-split-work](docs/wr-split-work/README.md) | Split parallel work across isolated `git worktree` workspaces with exclusive file lists, coordinator-only planning and verification, model routing by tier, and upfront bundle slimming |
+| Parallel Build & Guards | [wr-hook-forge](docs/wr-hook-forge/README.md) | Turn repeated mistakes into zero-dependency Node.js guard hooks, starting in `observe` mode before switching to `enforce` |
+| QA & Blind Audit | [wr-real-qa](docs/wr-real-qa/README.md) | Verify real execution paths with changed-file-to-test mapping (blocking `UNMAPPED` and `ZERO_RUN`), mutation probes for weak tests, clipping/occlusion scans, and two-strike stops |
+| QA & Blind Audit | [wr-skeptic-audit](docs/wr-skeptic-audit/README.md) | Three isolated read-only reviews of interaction, copy and diff after merge (core) |
+| UI Polish | [wr-ux-craft](docs/wr-ux-craft/README.md) | Polish UI with 8 low-effort UX rules, 7 state-driven motion checks, hover safe corridors with click-lock, elastic data scaling, and 2nd/3rd-order impact checks |
 
 ### Everyday & Growth Skills
 
 | Skill | What it does |
 | --- | --- |
-| [wr-sunkit](docs/wr-sunkit/README.md) | Calorie counting from meal photos, side-by-side plans from three different AIs, and an AI that argues against your assumptions |
 | [wr-geo](docs/wr-geo/README.md) | SEO and GEO audit for product sites: measure live crawler and no-JS content first, write a byte-fixed contract, and verify with an independent check script |
+| [wr-sunkit](docs/wr-sunkit/README.md) | Calorie counting from meal photos, side-by-side plans from three different AIs, and an AI that argues against your assumptions |
 
 ## First-Run Setup
 
@@ -59,14 +80,16 @@ Every Skill starts with a "step 0": it looks for `wr.config.json` (current direc
 
 Four zero-dependency Node.js standard-library scripts in `hooks/`, written to the Claude Code and Antigravity hook input/output specifications plus Git `pre-commit` support. The Skills work in Claude Code, Codex, Cursor, Antigravity and claude.ai; the hooks currently only attach to Claude Code and Antigravity.
 
-**Hooks only log by default.** Without a config file, or before `"onboarded": true` is set, all four hooks just append hits to `.wr-hook-observe.jsonl` (add it to `.gitignore`), credentials included. After setup, the safety guard uses the `standard` profile: credential access and recursive force-deletes are always blocked, `git reset --hard` is only logged, and everything else follows `hookMode` (default `observe`).
+**Two red lines are enforced from the start; everything else only logs until setup.** Without a config file, or before `"onboarded": true`, credential access and recursive force-deletes (outside temp and in-project build output) are blocked, and every other rule only appends to `.wr-hook-observe.jsonl` (add it to `.gitignore`). After setup the safety guard uses the `standard` profile: credentials and recursive force-deletes stay blocked, `git reset --hard` is only logged, and everything else follows `hookMode` (default `observe`). Set `language.output` to `en` for English hook messages. The observe log is redacted by default (rule name, last path segment, program name); set `observeLogDetail` to `full` to keep everything.
 
 - `hooks/safety-redline-guard.mjs`: blocks credential access; allows recursive force-deletes only inside temp directories or build-output directories inside the project (matched by whole path segment); flags destructive git resets on main checkouts. Three environment-specific rules are off by default: quiet host (`environment.quietMainMachine`), Orca long inline arguments (only when Orca is detected and the shell is PowerShell), and bare shared temp dirs on remote hosts (only when `environment.remoteHost` is set). Each rule can be set to `off` / `observe` / `enforce` under `safetyGuard.rules`.
 - `hooks/evidence-before-pass-gate.mjs`: tracks files actually read during a session and blocks marking `passes: true` in `acceptance.json` when coverage is unmapped, zero tests ran, or cited evidence was never read.
-- `hooks/speak-before-act-hook.mjs`: prompts the agent to state its plan before calling tools on a new user turn (supports the Claude Code transcript format). The Stop check only runs patterns you list in `speakBeforeAct.stopPatterns` (none by default) and respects `stop_hook_active` to avoid loops.
+- `hooks/speak-before-act-hook.mjs`: reminds the agent to state its plan before calling tools on a new user turn (supports the Claude Code transcript format). By default the reminder is added to the agent's context without denying the call; set `speakBeforeAct.preAction` to `block` to deny instead. The Stop check only runs patterns you list in `speakBeforeAct.stopPatterns` (none by default) and respects `stop_hook_active` to avoid loops.
 - `hooks/copy-and-privacy-lint.mjs`: pre-commit / CI scanner for local username/path leaks and common secret formats, plus your own banned words and term replacements. No built-in style word lists.
 
-Configuration examples live in `examples/` (`wr.config.example.json`, `AGENTS.template.md`, `hooks.claude.json`, `hooks.agy.json`, `acceptance.example.json`). Run the offline unit tests with `node hooks/test-hooks.mjs`. They have only been run on Windows 11; macOS and Linux are untested.
+To attach the hooks in Claude Code, merge the `hooks` section of [examples/hooks.claude.json](examples/hooks.claude.json) into `.claude/settings.json`. Commands use `node "${CLAUDE_PROJECT_DIR}/hooks/<script>.mjs"`, which works from subdirectories and worktrees, under Git Bash, and under PowerShell (Claude Code rewrites the placeholder). For a global install, put `hooks/` in a fixed folder and use its absolute path. A matching permission deny list is in [examples/claude-permissions.example.json](examples/claude-permissions.example.json).
+
+Run the offline unit tests with `node hooks/test-hooks.mjs`. They have only been run on Windows 11; macOS and Linux are untested. Chinese output needs a UTF-8 terminal.
 
 ## Install
 
@@ -89,7 +112,7 @@ claude plugin marketplace add WindriseAI/wr-skills
 claude plugin install wr-engineering@wr-skills
 claude plugin install wr-ask-first@wr-skills
 claude plugin install wr-10x-goal@wr-skills
-claude plugin install wr-sunkit@wr-skills
+claude plugin install wr-geo@wr-skills
 ```
 
 Or simply tell your Agent:
@@ -98,6 +121,8 @@ Or simply tell your Agent:
 
 claude.ai: download the repository ZIP archive, extract it, zip the target `skills/<skill-name>` subfolder, and upload it on the Skills settings page (or paste `docs/<skill-name>/提示词清单.md` directly into chat).
 
+Restricted network: download the ZIP (or clone from a mirror) on a machine with access, then copy the `skills/` folders into your skills directory by hand. Everything is plain text and dependency-free scripts.
+
 ## License
 
-[CC BY-NC 4.0](LICENSE). Free to use, share and adapt with attribution to Windrise AI and a link to this repo. **No commercial use**, including bundling into paid courses, bootcamps, paid communities or paid resource packs. For a commercial license, open an [issue](https://github.com/WindriseAI/wr-skills/issues).
+[CC BY-NC 4.0](LICENSE). In plain terms: individuals and teams may use it for free, including at work on their own projects, and may adapt and share it with attribution to Windrise AI and a link to this repo. Selling the content itself is not allowed, for example bundling it into paid courses, bootcamps, paid communities, paid resource packs or paid products. If you are unsure whether your use counts as commercial, or need a commercial license, open an [issue](https://github.com/WindriseAI/wr-skills/issues).

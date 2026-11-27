@@ -1,6 +1,6 @@
 """把 docs/src 下的 HTML 渲染成 docs/images 下的 PNG。
 
-用法：py docs/src/render.py
+用法：python docs/wr-sunkit/src/render.py（仅维护者重出配图用，需要先装 playwright；Windows 上也可以用 py 启动器）
 """
 from pathlib import Path
 from playwright.sync_api import sync_playwright

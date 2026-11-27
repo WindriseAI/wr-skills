@@ -36,6 +36,12 @@ wr-geo 把能核实的部分按「先查、再定、后改、另验」的顺序�
   curl -s -o /dev/null -w "%{http_code}" -A "OAI-SearchBot/1.0" https://www.example.com/
   ```
 
+  Windows PowerShell 里 `curl` 是 `Invoke-WebRequest` 的别名，要写成下面这样。
+
+  ```powershell
+  curl.exe -s -o NUL -w "%{http_code}" -A "OAI-SearchBot/1.0" https://www.example.com/
+  ```
+
   至少测 `OAI-SearchBot`、`Claude-SearchBot`、`PerplexityBot`、`bingbot`、`Googlebot`；面向中文用户再加 `Baiduspider`。实时回答靠的是这些搜索类爬虫；`GPTBot`、`ClaudeBot`、`Google-Extended` 是训练用的，拦不拦是另一件事。
 
 - **读线上的 robots.txt，不是仓库里那份**。CDN 会在文件头部自己加一段规则。
@@ -120,7 +126,7 @@ Claude Code 插件市场、claude.ai 上传、手动安装等其他方式，见 
 
 ### 不支持 Skill 的 AI
 
-ChatGPT、豆包、Kimi 等，可以直接用 [提示词清单](提示词清单.md)，每段都能复制过去用；也可以把 [SKILL.md](../../skills/wr-geo/SKILL.md) 的正文贴进它们的自定义指令。
+ChatGPT、Gemini、豆包、Kimi 等任何 AI 聊天工具，可以直接用 [提示词清单](提示词清单.md)，每段都能复制过去用；也可以把 [SKILL.md](../../skills/wr-geo/SKILL.md) 的正文贴进它们的自定义指令。
 
 ## 注意事项
 
@@ -132,4 +138,4 @@ ChatGPT、豆包、Kimi 等，可以直接用 [提示词清单](提示词清单.
 
 ## 授权
 
-[CC BY-NC 4.0](../../LICENSE)。可以免费使用、分享和修改，须注明作者 Windrise AI 和仓库链接；禁止商用，包括包装进付费课程、训练营、付费社群或付费资料包。详见 [授权说明](../../README.md#授权)。
+[CC BY-NC 4.0](../../LICENSE)。个人和团队可以免费使用（包括在公司里用来做自己的工作和项目），可以修改，转载分享时注明作者 Windrise AI 与仓库链接；不可以把这些内容本身拿去卖，例如放进付费课程、训练营、付费资料包或收费产品。拿不准算不算商用，提 [Issue](https://github.com/WindriseAI/wr-skills/issues) 问。本仓库是唯一来源，其他地方的副本以这里为准。

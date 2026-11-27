@@ -6,15 +6,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ./hooks/safety-redline-guard.mjs"
+            "command": "node \"${CLAUDE_PROJECT_DIR}/hooks/safety-redline-guard.mjs\""
           },
           {
             "type": "command",
-            "command": "node ./hooks/evidence-before-pass-gate.mjs --phase pre"
+            "command": "node \"${CLAUDE_PROJECT_DIR}/hooks/evidence-before-pass-gate.mjs\" --phase pre"
           },
           {
             "type": "command",
-            "command": "node ./hooks/speak-before-act-hook.mjs --phase pre"
+            "command": "node \"${CLAUDE_PROJECT_DIR}/hooks/speak-before-act-hook.mjs\" --phase pre"
           }
         ]
       }
@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ./hooks/evidence-before-pass-gate.mjs --phase post"
+            "command": "node \"${CLAUDE_PROJECT_DIR}/hooks/evidence-before-pass-gate.mjs\" --phase post"
           }
         ]
       }
@@ -36,7 +36,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ./hooks/speak-before-act-hook.mjs --phase stop"
+            "command": "node \"${CLAUDE_PROJECT_DIR}/hooks/speak-before-act-hook.mjs\" --phase stop"
           }
         ]
       }

@@ -43,4 +43,4 @@ npx -y skills add WindriseAI/wr-skills -g --all
 
 ## 授权
 
-[CC BY-NC 4.0](../../LICENSE)。可以免费学习、使用、分享和修改，须注明作者 Windrise AI 与仓库链接，禁止用于付费课程、训练营或付费资料包等商业用途。
+[CC BY-NC 4.0](../../LICENSE)。个人和团队可以免费使用（包括在公司里用来做自己的工作和项目），可以修改，转载分享时注明作者 Windrise AI 与仓库链接；不可以把这些内容本身拿去卖，例如放进付费课程、训练营、付费资料包或收费产品。拿不准算不算商用，提 [Issue](https://github.com/WindriseAI/wr-skills/issues) 问。本仓库是唯一来源，其他地方的副本以这里为准。

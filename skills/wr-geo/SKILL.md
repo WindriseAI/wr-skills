@@ -16,7 +16,7 @@ description: 官网上线前后的搜索引擎与 AI 收录体检。先实测线
 - 没有这个文件，或者没有 `"onboarded": true`，先把下面 8 题一次发给用户，每题括号里是默认值，并说明「回『好』就全按默认」。用户回「好」或只改了其中几题，其余一律按默认。
 - 收到答复后，把答案连同 `"onboarded": true` 写进项目根目录的 `wr.config.json`（用户要求全局生效就写 `~/wr.config.json`），已有字段保留不动，写完告诉用户写在哪、怎么改。字段全集和说明见 github.com/WindriseAI/wr-skills 的 `examples/README.md`。
 - 用户说「这次先不对齐」，就按默认值办事，不写文件，下次启用时再问。
-- 钩子在 `onboarded` 变成 `true` 之前一律只记录不拦截。
+- 钩子在 `onboarded` 变成 `true` 之前，除了碰凭据和递归强删照样直接拦，其余规则只记录不拦截。
 
 1. 机器与测试环境：只有这一台电脑，还是另有测试机、容器或 CI？跑测试时能不能占用这台电脑的键盘、鼠标和浏览器？（只有一台；耗时长的测试先说预计多久，同意后在本机跑；可以占用）写入 `environment.machine`（`single` / `has-runner`）、`environment.heavyTestsOnMainMachine`（`allow` / `ask` / `deny`）、`environment.quietMainMachine`（`false`）、`environment.remoteHost`（测试机的 ssh 主机名，没有就留空）。
 2. 系统与工具：用什么系统和终端？在哪个 AI 工具里用？有没有装 Orca 多代理工作台？（系统、终端和宿主自动探测；Orca 自动探测）写入 `environment.os`、`environment.shell`、`environment.host`、`tools.orca`。
@@ -34,7 +34,7 @@ description: 官网上线前后的搜索引擎与 AI 收录体检。先实测线
 
 1. **数字只来自工具或你抓到的页面，不来自记忆。** 核不了就写「没核」。永远不编搜索量。
 2. **先查不改。** 第一步只读线上，逐条给「通过 / 不通过」和证据（那一行、那个状态码）。
-3. **碰 robots.txt、canonical、跳转、noindex 的改动，先给人看差异，点头再发。永远不删页面。**
+3. **碰 robots.txt、canonical、跳转、noindex 的改动，先给人看差异，点头再发。永远不删页面。** 这一条不受 `workflow.publishConfirm` 影响；其余改动的发布按 `workflow.publishConfirm` 办：`always` 和 `push-and-release`（默认）都要等人确认再推送上线，`never` 时可以直接发，但发完要把改了什么列给人看。
 4. **没有真实数据就不加评分星级、FAQ 和 HowTo 标记**（没有真实评价就不该有星；页面上没有真实问答和分步教程就不加后两种）。有真实数据的站，在契约里逐项写明加哪些。
 
 ## 第一步 实测线上（只读）
@@ -67,15 +67,21 @@ description: 官网上线前后的搜索引擎与 AI 收录体检。先实测线
 
 ## 第五步 只有人能做的事
 
-列给站长，按顺序完成 Google Search Console、Bing Webmaster Tools（开 IndexNow）、面向中文用户加百度搜索资源平台；软件目录和发布平台（名字、一句话介绍、logo 全部一致）；注册时加一问「从哪知道我们的」。
+列给站长，按顺序完成 Google Search Console、Bing Webmaster Tools（开 IndexNow）、`geo.region` 为 `cn` 或面向中文用户时加百度搜索资源平台；软件目录和发布平台（名字、一句话介绍、logo 全部一致）；有注册流程的可以加一问「从哪知道我们的」（可选）。
 
-## 第六步 等基础打完后补充内容（可选）
+## 第六步 等基础打完后补充内容（可选，站长要做增长时才做）
 
-- 起草 20 个真实买家会问的问题，**猜的要标出来**，让站长换成真的。每个问题在各家 AI 上至少问两次、不登录，记下谁被点名、引用了哪些网址。
-- 提 5 个「决策页」（X 对比 Y、X 的替代品、某类人最适合的 X、X 的价格）。每个先搜一遍，写清现在前十名是什么类型的页面、我们这页多出来的一样东西是什么。**站长选定之前一页都不写。**
+下面的数量是建议值，按站点规模和额度增减。
+
+- 起草一批真实买家会问的问题（建议 20 个左右），**猜的要标出来**，让站长换成真的。每个问题在各家 AI 上至少问两次、不登录，记下谁被点名、引用了哪些网址。
+- 提几个「决策页」（建议 3 到 5 个，X 对比 Y、X 的替代品、某类人最适合的 X、X 的价格）。每个先搜一遍，写清现在前十名是什么类型的页面、我们这页多出来的一样东西是什么。**站长选定之前一页都不写。**
 - 写一份带日期的事实单（价格、套餐、平台），以后各家 AI 说错了，就顺着它引用的网页去改源头。
 
 ## 脚本
 
 - `scripts/seo-check.mjs <配置.json> <产物目录>`，按配置逐页检查 title、description、canonical、Open Graph、hreflang 对称、结构化数据（含禁用项）、robots、sitemap、禁用说法。配置格式见 `references/config-example.json`。退出码非 0 表示有不通过。
 - `scripts/render.mjs <输出目录> <名字>=<网址>@<宽>x<高> …`，用本机的 Edge 或 Chrome 无头渲染，输出截图、渲染后的可见文字和横向溢出像素。不需要安装任何依赖。
+
+**前置条件**：两个脚本都要 Node.js；`render.mjs` 要 Node 22 或更新（用到内置 WebSocket），还要本机装有 Edge 或 Chrome。开工前先跑 `node -v` 确认版本；没有浏览器的服务器上跳过渲染对比，改用「不跑 JS 抓原始 HTML」那半项，并在报告里写明「渲染对比未做」。
+
+**站点语言**：示例配置 `references/config-example.json` 是「英文主站」的写法。按 `geo.languages` 和 `geo.region` 改：中文主站把 `language.htmlLang` 改成 `zh-CN`，`titleCjk` 改成 `require`，去掉 `descriptionCjk` 和 `rawHtmlNoCjk`，description 长度区间改成中文字数（例如 `[50, 110]`）；只有一种语言时删掉 `hreflang`。完整的中文主站写法见 `references/config-example-zh.json`。
