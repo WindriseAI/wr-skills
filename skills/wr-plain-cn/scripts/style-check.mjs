@@ -96,7 +96,7 @@ function walkFiles(baseDir, targetPaths, exts, excludeNames) {
     }
     if (!st.isDirectory()) return;
     for (const entry of readdirSync(absPath, { withFileTypes: true })) {
-      if (excludeNames.has(entry.name)) continue;
+      if (excludeNames.has(entry.name) || entry.isSymbolicLink()) continue;
       visit(join(absPath, entry.name));
     }
   }
@@ -133,10 +133,10 @@ function isHorizontalRule(line) {
   return /^\s*([-*_])(?:\s*\1){2,}\s*$/.test(line);
 }
 
-const DEFAULT_SLANG = ['漏勺', '焊死', '硬搓', '瞎搓', '截胡', '爆雷', '兜底', '底座', '打回重修'];
+const DEFAULT_SLANG = ['硬搓', '瞎搓', '截胡', '爆雷'];
 
 const PREACH_COLON_RE =
-  /(?:核心(?:在于|是)|本质(?:上|在于|是)|说白了|换句话说|换言之|值得注意的是|残酷的现实是|真相是|结论是|这意味着|一句话总结|关键(?:在于|是)|根本原因(?:在于|是)|简而言之|总而言之|综上所述)\s*[：:]/g;
+  /(?:^|[。！？\n\s])(?:记住|说白了|综上所述|总而言之|简而言之|值得注意的是|一句话总结|(?:核心|关键|根本原因|重点|结论|真相|本质|原因)(?:在于|上|很简单)?是?)\s*[：:]/g;
 
 const NOT_BUT_RE =
   /(?:不是|并非|不只是|不仅仅|不在于)[^。！？；\n]{1,36}(?:而是|而在于|更是)/g;
@@ -209,7 +209,11 @@ export const RULE_LABELS = {
 export function scanText(content, fileLabel = '<text>', opts = {}) {
   const lines = String(content || '').split(/\r?\n/);
   const hits = [];
-  const slangWords = [...DEFAULT_SLANG, ...(Array.isArray(opts.extraSlang) ? opts.extraSlang : []).filter(Boolean)];
+  const extraWords = [
+    ...(Array.isArray(opts.customBannedWords) ? opts.customBannedWords : []),
+    ...(Array.isArray(opts.extraSlang) ? opts.extraSlang : [])
+  ].filter(Boolean);
+  const slangWords = [...new Set([...DEFAULT_SLANG, ...extraWords])];
   const slangRe = slangWords.length ? new RegExp(slangWords.map(escapeRegExp).join('|'), 'g') : null;
 
   let inFrontmatter = false;
@@ -271,7 +275,7 @@ export function scanText(content, fileLabel = '<text>', opts = {}) {
           label: RULE_LABELS.em_dash,
           file: fileLabel,
           line: lineNo,
-          snippet: rawLine.slice(start, m.index + m[0].length + 12).trim()
+          snippet: clean.slice(start, m.index + m[0].length + 12).trim()
         });
       }
     }
@@ -434,7 +438,7 @@ function main() {
   for (const f of files) {
     const rel = relative(cwd, f).replace(/\\/g, '/') || f;
     const content = readFileSync(f, 'utf8');
-    allHits.push(...scanText(content, rel, { extraSlang: styleCfg.extraSlang }));
+    allHits.push(...scanText(content, rel, { customBannedWords: styleCfg.customBannedWords, extraSlang: styleCfg.extraSlang }));
   }
 
   const counts = summarizeHits(allHits);

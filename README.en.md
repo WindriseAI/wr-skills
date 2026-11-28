@@ -72,6 +72,8 @@ Ordered by workflow stage: Pre-build (`wr-ask-first`, `wr-10x-goal`, `wr-axiomat
 | --- | --- |
 | [wr-plain-cn](docs/wr-plain-cn/README.md) | Plain Chinese writing and anti-AI-tone checks: concrete openings, natural spoken cadence, four hard bans, three syntax checks (enumeration chains, semicolons, adjacent parallel triplets), and an opt-in report-only script |
 
+> The three syntax checks (enumeration chains, semicolons, and adjacent parallel triplets) draw inspiration from [lieflat-less-ai-tone](https://github.com/larashero3-dotcom/lieflat-less-ai-tone); the rules, documentation, and script are written independently.
+
 ### Everyday & Growth Skills
 
 | Skill | What it does |

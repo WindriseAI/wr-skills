@@ -35,7 +35,7 @@
 2. **分号拆句**：正文里用分号把句子接起来的，改成句号（表格除外）。
 3. **相邻句同构**：相邻三句套同一个句式骨架（例如连续三句「第一道……第二道……第三道……」），打散其中一句。
 
-顿号连串、分号、相邻句同构三项检查思路参考了 [lieflat-less-ai-tone](https://github.com/larashero3-dotcom/lieflat-less-ai-tone)。
+顿号连串、分号拆句、相邻句同构三项检查思路参考了 [lieflat-less-ai-tone](https://github.com/larashero3-dotcom/lieflat-less-ai-tone)，规则文案与脚本为独立编写。
 
 ## 可选文风检查脚本
 
@@ -51,10 +51,13 @@
   "style": {
     "enabled": true,
     "mode": "report",
-    "signature": ""
+    "signature": "",
+    "customBannedWords": []
   }
 }
 ```
+
+如果团队或个人还有特定的忌口词（比如顺手常冒出来的口头禅或个人习惯词），可以填进 `style.customBannedWords`（不会放进公开默认词表）。
 
 命令行手动检查单篇草稿：
 

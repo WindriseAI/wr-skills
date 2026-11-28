@@ -113,6 +113,6 @@
       "dist",
       "build"
     ],
-    "extraSlang": []
+    "customBannedWords": []
   }
 }

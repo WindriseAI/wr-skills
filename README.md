@@ -77,6 +77,8 @@ npx -y skills add WindriseAI/wr-skills -g --skill wr-ask-first wr-10x-goal wr-ax
 | --- | --- | --- | --- |
 | [wr-plain-cn](docs/wr-plain-cn/README.md) | 平实中文写作与去机器味检查：真实小事起手、连贯口语长句、四条硬封底线与顿号连串、分号拆句、相邻句同构三项句法检查，附默认关闭的可选检查脚本 | [说明](docs/wr-plain-cn/README.md) | [复制用](docs/wr-plain-cn/提示词清单.md) |
 
+> 顿号连串、分号拆句、相邻句同构三项检查思路参考 [lieflat-less-ai-tone](https://github.com/larashero3-dotcom/lieflat-less-ai-tone)，规则文案与检查脚本均为独立编写。
+
 ### 日常与增长 Skill
 
 | Skill | 一句话说清干什么 | 文档 | 提示词清单 |

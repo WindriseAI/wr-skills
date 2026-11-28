@@ -141,7 +141,7 @@
 | `style.signature` | 空 | 可选的自定义文末落款；留空时写完直接收笔 |
 | `style.extensions` | `.md` `.txt` | 文风检查扫描的文件扩展名 |
 | `style.excludePaths` | `node_modules`、`.git`、`dist`、`build` | 文风检查跳过的目录名 |
-| `style.extraSlang` | `[]` | 你自己额外想拦截的塑料俚语或口头禅 |
+| `style.customBannedWords` | `[]` | 你自己额外想检查的忌口词或个人高频口头禅（默认词表不含个人词和常见技术词） |
 
 ### 环境变量
 

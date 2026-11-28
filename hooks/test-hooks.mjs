@@ -961,6 +961,7 @@ try {
       const text = readFileSync(join(REPO_DIR, f), 'utf8');
       assert.match(text, /wr-plain-cn/, f);
       assert.match(text, /skills-11-/, f);
+      assert.match(text, /lieflat-less-ai-tone/, f);
     }
     const readmeDoc = readFileSync(join(REPO_DIR, 'docs', 'wr-plain-cn', 'README.md'), 'utf8');
     assert.match(readmeDoc, /lieflat-less-ai-tone/);
@@ -1010,7 +1011,9 @@ try {
       '这里有——破折号。',
       '这不是工具问题，而是流程问题。',
       '核心在于：先把功能跑通再美化。',
-      '上线前抓出三处漏勺，只好焊死。',
+      '记住：没有实测不要下结论。',
+      '上线前别硬搓，否则容易爆雷。',
+      '这套系统需要一个兜底方案，数据底座稳定以后耗时降到两百毫秒。',
       '我们要先查配色、按钮、动画和边距这些细节。',
       '前面先写清楚需求；后面再拆分任务。',
       '第一道是限制工具调用次数。第二道是拦住直接改业务文件。第三道是逼它先汇报再动手。',
@@ -1033,11 +1036,28 @@ try {
     const data = JSON.parse(r.stdout);
     assert.equal(data.counts.em_dash, 1);
     assert.equal(data.counts.not_but, 1);
-    assert.equal(data.counts.preach_colon, 1);
-    assert.equal(data.counts.plastic_slang, 2);
+    assert.equal(data.counts.preach_colon, 2);
+    assert.equal(data.counts.plastic_slang, 2, '只命中默认塑料俚语，不误报「兜底」「底座」');
     assert.equal(data.counts.dunhao_chain, 1, '表格和任务检查清单中的顿号连串应豁免');
     assert.equal(data.counts.semicolon_split, 1, '表格中的分号应豁免');
     assert.equal(data.counts.adjacent_isomorphism, 1);
+  });
+
+  test('style-check: 含 Markdown 链接的行破折号摘要不错位，自定义忌口词走 customBannedWords', () => {
+    const p = makeProject({ onboarded: true, style: { enabled: true, customBannedWords: ['个人忌口词'] } });
+    const docPath = join(p, 'link-and-custom.md');
+    writeFileSync(
+      docPath,
+      '参考[这是一个非常长的链接说明文字](https://example.com/very/long/path/to/documentation/page.html)之后我们发现——原来是配置没生效。\n这里顺手写了个人忌口词。\n',
+      'utf8'
+    );
+    const r = runStyle(['--cwd', p, '--json']);
+    assert.equal(r.status, 0);
+    const data = JSON.parse(r.stdout);
+    const dashHit = data.hits.find((h) => h.rule === 'em_dash');
+    assert.ok(dashHit, '应命中破折号');
+    assert.match(dashHit.snippet, /——/, '摘要应在同一份剥离标记后的文本上切片，包含破折号本身');
+    assert.equal(data.counts.plastic_slang, 1, '自定义忌口词应通过 style.customBannedWords 命中');
   });
 
   test('style-check: 干净平实稿件 0 命中', () => {
