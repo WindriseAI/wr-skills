@@ -6,7 +6,7 @@
 
 [![Docs: CC BY-NC 4.0](https://img.shields.io/badge/docs-CC%20BY--NC%204.0-16A34A.svg?style=flat-square)](LICENSE)
 [![Code: MIT](https://img.shields.io/badge/code-MIT-16A34A.svg?style=flat-square)](LICENSE-MIT)
-[![Skills](https://img.shields.io/badge/skills-10-2563EB.svg?style=flat-square)](#skills)
+[![Skills](https://img.shields.io/badge/skills-11-2563EB.svg?style=flat-square)](#skills)
 [![Hooks](https://img.shields.io/badge/hooks-4-0F766E.svg?style=flat-square)](#universal-hooks)
 
 Written to the common Skills format for Claude Code, Codex, Cursor, Antigravity, claude.ai and other agents that support Skills (not tested on every host). Every Skill also includes a standalone prompt checklist in Chinese for web chats that do not support Skills.
@@ -65,6 +65,12 @@ Ordered by workflow stage: Pre-build (`wr-ask-first`, `wr-10x-goal`, `wr-axiomat
 | QA & Blind Audit | [wr-real-qa](docs/wr-real-qa/README.md) | Verify real execution paths with changed-file-to-test mapping (blocking `UNMAPPED` and `ZERO_RUN`), mutation probes for weak tests, clipping/occlusion scans, and two-strike stops |
 | QA & Blind Audit | [wr-skeptic-audit](docs/wr-skeptic-audit/README.md) | Three isolated read-only reviews of interaction, copy and diff after merge (core) |
 | UI Polish | [wr-ux-craft](docs/wr-ux-craft/README.md) | Polish UI with 8 low-effort UX rules, 7 state-driven motion checks, hover safe corridors with click-lock, elastic data scaling, and 2nd/3rd-order impact checks |
+
+### Writing Skill
+
+| Skill | What it does |
+| --- | --- |
+| [wr-plain-cn](docs/wr-plain-cn/README.md) | Plain Chinese writing and anti-AI-tone checks: concrete openings, natural spoken cadence, four hard bans, three syntax checks (enumeration chains, semicolons, adjacent parallel triplets), and an opt-in report-only script |
 
 ### Everyday & Growth Skills
 

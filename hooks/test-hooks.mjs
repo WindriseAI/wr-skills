@@ -950,14 +950,107 @@ try {
     }
   });
 
-  test('skills: 公开包不含写作风格技能 wr-plain-cn，也不再引用它', () => {
-    assert.equal(existsSync(join(REPO_DIR, 'skills', 'wr-plain-cn')), false);
-    assert.equal(existsSync(join(REPO_DIR, 'docs', 'wr-plain-cn')), false);
-    const market = readFileSync(join(REPO_DIR, '.claude-plugin', 'marketplace.json'), 'utf8');
-    assert.doesNotMatch(market, /plain-cn/);
+  test('skills: 公开包包含平实中文写作技能 wr-plain-cn、可选检查脚本与文档，且已去个人化', () => {
+    assert.equal(existsSync(join(REPO_DIR, 'skills', 'wr-plain-cn', 'SKILL.md')), true);
+    assert.equal(existsSync(join(REPO_DIR, 'skills', 'wr-plain-cn', 'scripts', 'style-check.mjs')), true);
+    assert.equal(existsSync(join(REPO_DIR, 'docs', 'wr-plain-cn', 'README.md')), true);
+    assert.equal(existsSync(join(REPO_DIR, 'docs', 'wr-plain-cn', '提示词清单.md')), true);
+    const market = JSON.parse(readFileSync(join(REPO_DIR, '.claude-plugin', 'marketplace.json'), 'utf8'));
+    assert.ok(market.plugins.some((p) => p.name === 'wr-plain-cn'));
     for (const f of ['README.md', 'README.en.md']) {
-      assert.doesNotMatch(readFileSync(join(REPO_DIR, f), 'utf8'), /plain-cn/);
+      const text = readFileSync(join(REPO_DIR, f), 'utf8');
+      assert.match(text, /wr-plain-cn/, f);
+      assert.match(text, /skills-11-/, f);
     }
+    const readmeDoc = readFileSync(join(REPO_DIR, 'docs', 'wr-plain-cn', 'README.md'), 'utf8');
+    assert.match(readmeDoc, /lieflat-less-ai-tone/);
+    for (const f of ['skills/wr-plain-cn/SKILL.md', 'docs/wr-plain-cn/README.md', 'docs/wr-plain-cn/提示词清单.md']) {
+      const text = readFileSync(join(REPO_DIR, f), 'utf8');
+      assert.doesNotMatch(text, /这里是风起|从 1 学 AI|CamDrop|影传|Opus 5\.5|C:\/Users\//, f);
+    }
+    const exCfg = JSON.parse(readFileSync(join(REPO_DIR, 'examples', 'wr.config.example.json'), 'utf8'));
+    assert.equal(exCfg.style.enabled, false);
+    assert.equal(exCfg.style.mode, 'report');
+  });
+
+  // ========== 八、wr-plain-cn 可选文风检查脚本 ==========
+  const STYLE_SCRIPT = join(REPO_DIR, 'skills', 'wr-plain-cn', 'scripts', 'style-check.mjs');
+  function runStyle(args = [], envExtra = {}) {
+    return spawnSync(process.execPath, [STYLE_SCRIPT, ...args, '--user-config', join(envExtra.HOME || sandboxHome, 'wr.config.json')], {
+      encoding: 'utf8',
+      cwd: sandbox,
+      env: baseEnv(envExtra)
+    });
+  }
+
+  test('style-check: 默认未启用时钩子和整库模式安静跳过，启用后默认只报告不拦截', () => {
+    const pOff = makeProject({ onboarded: true });
+    writeFileSync(join(pOff, 'draft.md'), '这里有——破折号。\n', 'utf8');
+    const rSkip = runStyle(['--cwd', pOff, '--json']);
+    assert.equal(rSkip.status, 0);
+    assert.equal(JSON.parse(rSkip.stdout).skipped, true);
+
+    const pOn = makeProject({ onboarded: true, style: { enabled: true, mode: 'report' } });
+    writeFileSync(join(pOn, 'draft.md'), '这里有——破折号。\n', 'utf8');
+    const rReport = runStyle(['--cwd', pOn, '--json']);
+    assert.equal(rReport.status, 0, '启用后默认只报告不拦截');
+    const out = JSON.parse(rReport.stdout);
+    assert.equal(out.skipped, false);
+    assert.equal(out.counts.em_dash, 1);
+
+    const rEnforce = runStyle(['--cwd', pOn, '--enforce', '--json']);
+    assert.equal(rEnforce.status, 1, '显式 enforce 时有命中才返回 1');
+  });
+
+  test('style-check: 七类规则准确命中，表格和任务检查清单正确豁免', () => {
+    const p = makeProject({ onboarded: true, style: { enabled: true } });
+    const sample = [
+      '# 示例标题',
+      '',
+      '这里有——破折号。',
+      '这不是工具问题，而是流程问题。',
+      '核心在于：先把功能跑通再美化。',
+      '上线前抓出三处漏勺，只好焊死。',
+      '我们要先查配色、按钮、动画和边距这些细节。',
+      '前面先写清楚需求；后面再拆分任务。',
+      '第一道是限制工具调用次数。第二道是拦住直接改业务文件。第三道是逼它先汇报再动手。',
+      '',
+      '| 列一 | 列二 |',
+      '| --- | --- |',
+      '| 宽屏、窄屏、浅色、深色 | 先查日志；再看代码 |',
+      '',
+      '- [ ] 核对标题、正文、链接、配图是否齐全',
+      '',
+      '```text',
+      '代码块里的——破折号、分号；顿号甲、乙、丙都不应误报。',
+      '```'
+    ].join('\n');
+    const docPath = join(p, 'sample.md');
+    writeFileSync(docPath, sample, 'utf8');
+
+    const r = runStyle([docPath, '--json']);
+    assert.equal(r.status, 0);
+    const data = JSON.parse(r.stdout);
+    assert.equal(data.counts.em_dash, 1);
+    assert.equal(data.counts.not_but, 1);
+    assert.equal(data.counts.preach_colon, 1);
+    assert.equal(data.counts.plastic_slang, 2);
+    assert.equal(data.counts.dunhao_chain, 1, '表格和任务检查清单中的顿号连串应豁免');
+    assert.equal(data.counts.semicolon_split, 1, '表格中的分号应豁免');
+    assert.equal(data.counts.adjacent_isomorphism, 1);
+  });
+
+  test('style-check: 干净平实稿件 0 命中', () => {
+    const p = makeProject({ onboarded: true, style: { enabled: true } });
+    const cleanDoc = join(p, 'clean.md');
+    writeFileSync(
+      cleanDoc,
+      '# 一次简单的排查记录\n\n上周我给工具加了一个导出功能，刚开始数据少的时候跑得挺顺，后来导入了五千条记录，页面点一下就卡住了。排查下来是列表一次性把全部数据拉进了内存，改成分页拉取以后就顺畅了。\n',
+      'utf8'
+    );
+    const r = runStyle([cleanDoc, '--enforce', '--json']);
+    assert.equal(r.status, 0);
+    assert.equal(JSON.parse(r.stdout).total, 0);
   });
 
   test('docs: 三席人设中性、第二席是老编辑，README 以四个核心技能为主、不写死十个，AGENTS 模板分三档', () => {

@@ -6,7 +6,7 @@
 
 [![Docs: CC BY-NC 4.0](https://img.shields.io/badge/docs-CC%20BY--NC%204.0-16A34A.svg?style=flat-square)](LICENSE)
 [![Code: MIT](https://img.shields.io/badge/code-MIT-16A34A.svg?style=flat-square)](LICENSE-MIT)
-[![Skills](https://img.shields.io/badge/skills-10-2563EB.svg?style=flat-square)](#skills-一览)
+[![Skills](https://img.shields.io/badge/skills-11-2563EB.svg?style=flat-square)](#skills-一览)
 [![Hooks](https://img.shields.io/badge/hooks-4-0F766E.svg?style=flat-square)](#通用钩子脚本)
 [![中文](https://img.shields.io/badge/语言-中文-B4532A.svg?style=flat-square)](#)
 
@@ -70,6 +70,12 @@ npx -y skills add WindriseAI/wr-skills -g --skill wr-ask-first wr-10x-goal wr-ax
 | 跑通功能与排错验收 | [wr-real-qa](docs/wr-real-qa/README.md) | 改动全覆盖真路径验收。做改动文件到行为测试映射并硬禁未覆盖与零用例，用突变探针抓假绿水测试，扫浏览器裁切遮挡并在连败两次时停手查根因 | [说明](docs/wr-real-qa/README.md) | [复制用](docs/wr-real-qa/提示词清单.md) |
 | 跑通功能与排错验收 | [wr-skeptic-audit](docs/wr-skeptic-audit/README.md) | 合并后三个隔离的只读会话分别审交互、文案和 diff（核心推荐） | [说明](docs/wr-skeptic-audit/README.md) | [复制用](docs/wr-skeptic-audit/提示词清单.md) |
 | 功能稳后界面打磨 | [wr-ux-craft](docs/wr-ux-craft/README.md) | 界面省心规矩与跟手动效设计。按只点默认按钮的新手视角过八条省心规矩和十二种状态动效，加上斜向防误触走廊、点击锁定、任意条数扩容与二三阶影响检查 | [说明](docs/wr-ux-craft/README.md) | [复制用](docs/wr-ux-craft/提示词清单.md) |
+
+### 写作 Skill
+
+| Skill | 一句话说清干什么 | 文档 | 提示词清单 |
+| --- | --- | --- | --- |
+| [wr-plain-cn](docs/wr-plain-cn/README.md) | 平实中文写作与去机器味检查：真实小事起手、连贯口语长句、四条硬封底线与顿号连串、分号拆句、相邻句同构三项句法检查，附默认关闭的可选检查脚本 | [说明](docs/wr-plain-cn/README.md) | [复制用](docs/wr-plain-cn/提示词清单.md) |
 
 ### 日常与增长 Skill
 
@@ -209,7 +215,7 @@ claude plugin install wr-geo@wr-skills
 
 ```text
 wr-skills/
-├── skills/                  # 10 个推荐独立 Skill（按开工前到验收顺序排列）
+├── skills/                  # 11 个推荐独立 Skill（按开工前到验收顺序排列）
 │   ├── wr-ask-first/SKILL.md
 │   ├── wr-10x-goal/SKILL.md
 │   ├── wr-axiomatic-design/SKILL.md
@@ -218,6 +224,7 @@ wr-skills/
 │   ├── wr-real-qa/SKILL.md
 │   ├── wr-skeptic-audit/SKILL.md
 │   ├── wr-ux-craft/SKILL.md
+│   ├── wr-plain-cn/
 │   ├── wr-geo/
 │   └── wr-sunkit/
 ├── docs/                    # 每个 Skill 的详细说明、提示词清单与配图

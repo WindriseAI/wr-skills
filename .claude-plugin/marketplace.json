@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Windrise AI 的中文 AI Skills 合集与软件工程实战工具箱。",
-    "version": "2.2.0"
+    "version": "2.3.0"
   },
   "plugins": [
     {
@@ -98,6 +98,16 @@
       "category": "design",
       "keywords": ["ux", "motion", "interaction", "responsive", "chinese"],
       "skills": ["./skills/wr-ux-craft"]
+    },
+    {
+      "name": "wr-plain-cn",
+      "description": "平实中文写作与去机器味检查：真实小事起手、连贯口语长句、四条硬封底线与顿号连串、分号拆句、相邻句同构三项句法检查，附默认关闭的可选检查脚本。",
+      "source": "./",
+      "strict": false,
+      "version": "1.0.0",
+      "category": "writing",
+      "keywords": ["writing", "plain-chinese", "anti-ai-tone", "syntax-check", "chinese"],
+      "skills": ["./skills/wr-plain-cn"]
     },
     {
       "name": "wr-sunkit",

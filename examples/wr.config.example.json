@@ -98,5 +98,21 @@
     ],
     "customBannedWords": [],
     "termReplacements": {}
+  },
+  "style": {
+    "enabled": false,
+    "mode": "report",
+    "signature": "",
+    "extensions": [
+      ".md",
+      ".txt"
+    ],
+    "excludePaths": [
+      "node_modules",
+      ".git",
+      "dist",
+      "build"
+    ],
+    "extraSlang": []
   }
 }

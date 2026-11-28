@@ -136,6 +136,12 @@
 | `copyLint.excludePaths` | `node_modules`、`.git`、`dist`、`build` | 跳过的目录名 |
 | `copyLint.customBannedWords` | `[]` | 你自己的禁用词，例如已经改名的旧代号。没有任何内置词表 |
 | `copyLint.termReplacements` | `{}` | 旧名到新名的替换提示，例如 `{ "旧产品名": "请改为新产品名" }` |
+| `style.enabled` | `false` | 是否启用 `wr-plain-cn` 可选文风检查脚本。默认关闭，只在首次对齐里选启用后生效 |
+| `style.mode` | `report` | 文风检查模式：`report` 只报告不拦截（退出码 `0`），`enforce` 命中即返回非零退出码，`off` 关闭 |
+| `style.signature` | 空 | 可选的自定义文末落款；留空时写完直接收笔 |
+| `style.extensions` | `.md` `.txt` | 文风检查扫描的文件扩展名 |
+| `style.excludePaths` | `node_modules`、`.git`、`dist`、`build` | 文风检查跳过的目录名 |
+| `style.extraSlang` | `[]` | 你自己额外想拦截的塑料俚语或口头禅 |
 
 ### 环境变量
 
